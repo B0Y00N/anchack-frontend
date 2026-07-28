@@ -13,6 +13,11 @@ const router = createRouter({
       name: 'explore',
       component: () => import('@/views/ExploreView.vue'),
     },
+    {
+      path: '/search-result',
+      name: 'search-result',
+      component: () => import('@/views/SearchResultView.vue'),
+    },
   ],
 })
 

@@ -10,7 +10,7 @@ import { ref, onMounted } from 'vue'
 import * as echarts from 'echarts'
 
 // 1. 저장해둔 GeoJSON 파일 불러오기
-import seoulDataRaw from '@/assets/seoul.geojson?raw'
+import seoulDataRaw from '@/assets/seoul_gu.geojson?raw'
 
 const seoulData = JSON.parse(seoulDataRaw)
 const mapContainer = ref(null)
