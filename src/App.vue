@@ -1,9 +1,12 @@
 <script setup>
-import { RouterView } from 'vue-router'
+import TheHeader from "./components/common/TheHeader.vue";
 </script>
 
 <template>
-  <RouterView />
+  <div class="min-h-screen bg-background" style="font-family: 'Noto Sans KR', sans-serif">
+    <TheHeader />
+    <router-view />
+  </div>
 </template>
 
 <style>
