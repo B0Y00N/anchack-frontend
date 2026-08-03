@@ -23,12 +23,14 @@ const routes = [
 ];
 
 const router = createRouter({
-  history: createWebHistory(),
-  routes,
-  scrollBehavior() {
-    // 원본 App.tsx의 navigate()가 페이지 전환마다 스크롤을 맨 위로 올리던 동작 재현
-    return { top: 0 };
-  },
-});
+  history: createWebHistory(import.meta.env.BASE_URL),
+  routes: [
+    {
+      path: '/',
+      name: 'home',
+      component: () => import('@/views/HomeView.vue'),
+    },
+  ],
+})
 
-export default router;
+export default router
