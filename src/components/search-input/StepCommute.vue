@@ -22,12 +22,11 @@ function selectAddress(name, addr) {
 }
 
 const canNext = computed(() => {
-  if (props.state.addressTab === "known") {
-    return props.state.detailAddress && props.state.detailAddress.trim().length > 0;
-  } else {
-    return true;
-  }
+  return props.state.addressTab === "known"
+    ? (props.state.detailAddress ? props.state.detailAddress.trim().length > 0 : false)
+    : true;
 });
+
 </script>
 
 <template>
@@ -36,10 +35,10 @@ const canNext = computed(() => {
 
     <div class="flex bg-muted rounded-xl p-1 mb-7">
       <button
-          v-for="(t, i) in ['known', 'unknown']"
-          :key="t"
-          @click="update({ addressTab: t })"
-          :class="`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all ${state.addressTab === t ? 'bg-white text-foreground shadow-sm' : 'text-muted-foreground'}`"
+        v-for="(t, i) in ['known', 'unknown']"
+        :key="t"
+        @click="update({ addressTab: t })"
+        :class="`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all ${state.addressTab === t ? 'bg-white text-foreground shadow-sm' : 'text-muted-foreground'}`"
       >
         {{ i === 0 ? "주소를 알고 있어요" : "아직 정해지지 않았어요" }}
       </button>
@@ -76,10 +75,10 @@ const canNext = computed(() => {
         <p class="text-sm text-muted-foreground mb-3">통근 수단</p>
         <div class="flex bg-muted rounded-xl p-1">
           <button
-              v-for="m in ['대중교통', '자가용']"
-              :key="m"
-              @click="update({ commuteMode: m })"
-              :class="`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all ${state.commuteMode === m ? 'bg-white text-foreground shadow-sm' : 'text-muted-foreground'}`"
+            v-for="m in ['대중교통', '자가용']"
+            :key="m"
+            @click="update({ commuteMode: m })"
+            :class="`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all ${state.commuteMode === m ? 'bg-white text-foreground shadow-sm' : 'text-muted-foreground'}`"
           >
             {{ m }}
           </button>
