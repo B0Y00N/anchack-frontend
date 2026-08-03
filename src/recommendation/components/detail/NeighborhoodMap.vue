@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed } from "vue";
-import { MAP_MARKER_SETS } from "../../../utils/mockData";
+import { MAP_MARKER_SETS } from "../../../common/utils/mockData";
 
 const props = defineProps({
   dong: { type: String, required: true },

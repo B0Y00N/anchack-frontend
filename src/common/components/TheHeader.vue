@@ -2,9 +2,9 @@
 import { useRouter } from "vue-router";
 import { User, LogOut, Search, ShoppingCart } from "lucide-vue-next";
 import SproutLogo from "./SproutLogo.vue";
-import { useAuthStore } from "../../stores/useAuthStore";
-import { useNeighborhoodStore } from "../../stores/useNeighborhoodStore";
-import { useMyPageStore } from "../../stores/useMyPageStore";
+import { useAuthStore } from "../../user/stores/useAuthStore";
+import { useNeighborhoodStore } from "../../region/stores/useNeighborhoodStore";
+import { useMyPageStore } from "../../mypage/stores/useMyPageStore";
 
 const router = useRouter();
 const auth = useAuthStore();

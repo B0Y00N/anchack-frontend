@@ -1,7 +1,7 @@
 <script setup>
 import { useRouter } from "vue-router";
-import SproutLogo from "../common/SproutLogo.vue";
-import { useAuthStore } from "../../stores/useAuthStore";
+import SproutLogo from "../../common/components/SproutLogo.vue";
+import { useAuthStore } from "../stores/useAuthStore";
 
 const router = useRouter();
 const auth = useAuthStore();

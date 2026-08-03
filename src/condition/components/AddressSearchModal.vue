@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed } from "vue";
 import { X, Search, MapPin } from "lucide-vue-next";
-import { MOCK_ADDRESSES } from "../../utils/mockData";
+import { MOCK_ADDRESSES } from "../../common/utils/mockData";
 
 const emit = defineEmits(["close", "select"]);
 const query = ref("");

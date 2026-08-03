@@ -2,7 +2,7 @@
 import SearchStepLayout from "./SearchStepLayout.vue";
 import PriorityChip from "./PriorityChip.vue";
 import MustHaveChip from "./MustHaveChip.vue";
-import { PRIORITY_OPTIONS, MUST_HAVE_OPTIONS } from "../../utils/mockData";
+import { PRIORITY_OPTIONS, MUST_HAVE_OPTIONS } from "../../common/utils/mockData";
 
 const props = defineProps({ state: { type: Object, required: true } });
 const emit = defineEmits(["update", "next", "prev"]);

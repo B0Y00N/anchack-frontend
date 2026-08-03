@@ -1,4 +1,4 @@
-import { DONG_DATA } from "../utils/mockData";
+import { DONG_DATA } from "../../common/utils/mockData";
 
 export function useDongStats(district, dong) {
   const hash = dong.split("").reduce((a, c) => a + c.charCodeAt(0), 0) % 20;

@@ -1,5 +1,5 @@
 import { defineStore } from "pinia";
-import { INITIAL_REVIEWS, DEFAULT_SAVED_CONDITIONS } from "../utils/mockData";
+import { INITIAL_REVIEWS, DEFAULT_SAVED_CONDITIONS } from "../../common/utils/mockData";
 
 export const useMyPageStore = defineStore("mypage", {
   state: () => ({

@@ -1,9 +1,9 @@
 <script setup>
 import { useRouter } from "vue-router";
-import HomeHero from "../components/home/HomeHero.vue";
-import HomeServiceCards from "../components/home/HomeServiceCards.vue";
-import HomeProcessSteps from "../components/home/HomeProcessSteps.vue";
-import TheFooter from "../components/common/TheFooter.vue";
+import HomeHero from "../components/HomeHero.vue";
+import HomeServiceCards from "../components/HomeServiceCards.vue";
+import HomeProcessSteps from "../components/HomeProcessSteps.vue";
+import TheFooter from "../../common/components/TheFooter.vue";
 
 const router = useRouter();
 

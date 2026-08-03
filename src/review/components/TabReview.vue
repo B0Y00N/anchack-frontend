@@ -1,6 +1,6 @@
 <script setup>
 import { MessageSquare } from "lucide-vue-next";
-import StarDisplay from "../../common/StarDisplay.vue";
+import StarDisplay from "../../common/components/StarDisplay.vue";
 import ReviewCard from "./ReviewCard.vue";
 
 defineProps({

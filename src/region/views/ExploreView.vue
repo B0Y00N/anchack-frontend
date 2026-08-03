@@ -2,16 +2,16 @@
 import { computed, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { Map, Check, ChevronLeft, ChevronRight } from "lucide-vue-next";
-import RegionSelector from "../components/explore/sidebar/RegionSelector.vue";
-import ExploreHeader from "../components/explore/main/ExploreHeader.vue";
-import ExploreTabs from "../components/explore/main/ExploreTabs.vue";
-import ReviewWriteModal from "../components/explore/main/ReviewWriteModal.vue";
-import StarDisplay from "../components/common/StarDisplay.vue";
-import BaseToast from "../components/common/BaseToast.vue";
-import TheFooter from "../components/common/TheFooter.vue";
-import { DONG_DATA } from "../utils/mockData";
+import RegionSelector from "../components/RegionSelector.vue";
+import ExploreHeader from "../components/ExploreHeader.vue";
+import ExploreTabs from "../components/ExploreTabs.vue";
+import ReviewWriteModal from "../../review/components/ReviewWriteModal.vue";
+import StarDisplay from "../../common/components/StarDisplay.vue";
+import BaseToast from "../../common/components/BaseToast.vue";
+import TheFooter from "../../common/components/TheFooter.vue";
+import { DONG_DATA } from "../../common/utils/mockData";
 import { useNeighborhoodStore } from "../stores/useNeighborhoodStore";
-import { useMyPageStore } from "../stores/useMyPageStore";
+import { useMyPageStore } from "../../mypage/stores/useMyPageStore";
 import { useDongStats } from "../composables/useDongStats";
 
 const route = useRoute();

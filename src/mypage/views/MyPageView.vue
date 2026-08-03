@@ -1,16 +1,16 @@
 <script setup>
 import { ref, computed } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { useAuthStore } from "../stores/useAuthStore";
+import { useAuthStore } from "../../user/stores/useAuthStore";
 import { useMyPageStore } from "../stores/useMyPageStore";
-import TheFooter from "../components/common/TheFooter.vue";
-import UserProfileSummary from "../components/mypage/UserProfileSummary.vue";
-import MyPageTabs from "../components/mypage/MyPageTabs.vue";
-import ProfileEdit from "../components/mypage/ProfileEdit.vue";
-import SavedNeighborhoodList from "../components/mypage/SavedNeighborhoodList.vue";
-import SavedConditionList from "../components/mypage/SavedConditionList.vue";
-import MyReviewList from "../components/mypage/MyReviewList.vue";
-import ReviewEditModal from "../components/mypage/ReviewEditModal.vue";
+import TheFooter from "../../common/components/TheFooter.vue";
+import UserProfileSummary from "../../user/components/UserProfileSummary.vue";
+import MyPageTabs from "../components/MyPageTabs.vue";
+import ProfileEdit from "../../user/components/ProfileEdit.vue";
+import SavedNeighborhoodList from "../../region/components/SavedNeighborhoodList.vue";
+import SavedConditionList from "../../condition/components/SavedConditionList.vue";
+import MyReviewList from "../../review/components/MyReviewList.vue";
+import ReviewEditModal from "../../review/components/ReviewEditModal.vue";
 
 const route = useRoute();
 const router = useRouter();

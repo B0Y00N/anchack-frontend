@@ -1,18 +1,18 @@
 <script setup>
 import { ref, computed } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import RecommendList from "../components/search-result/sidebar/RecommendList.vue";
-import SaveConditionModal from "../components/search-result/sidebar/SaveConditionModal.vue";
-import SavedConditionsListModal from "../components/search-result/sidebar/SavedConditionsListModal.vue";
-import ResultMap from "../components/search-result/main/ResultMap.vue";
-import CompareTable from "../components/search-result/main/CompareTable.vue";
-import ListingsPanel from "../components/search-result/main/ListingsPanel.vue";
-import DetailPanel from "../components/search-result/detail/DetailPanel.vue";
-import BaseToast from "../components/common/BaseToast.vue";
-import { NEIGHBORHOODS } from "../utils/mockData";
-import { useSearchStore } from "../stores/useSearchStore";
-import { useNeighborhoodStore } from "../stores/useNeighborhoodStore";
-import { useMyPageStore } from "../stores/useMyPageStore";
+import RecommendList from "../components/sidebar/RecommendList.vue";
+import SaveConditionModal from "../components/sidebar/SaveConditionModal.vue";
+import SavedConditionsListModal from "../components/sidebar/SavedConditionsListModal.vue";
+import ResultMap from "../components/main/ResultMap.vue";
+import CompareTable from "../components/main/CompareTable.vue";
+import ListingsPanel from "../components/main/ListingsPanel.vue";
+import DetailPanel from "../components/detail/DetailPanel.vue";
+import BaseToast from "../../common/components/BaseToast.vue";
+import { NEIGHBORHOODS } from "../../common/utils/mockData";
+import { useSearchStore } from "../../condition/stores/useSearchStore";
+import { useNeighborhoodStore } from "../../region/stores/useNeighborhoodStore";
+import { useMyPageStore } from "../../mypage/stores/useMyPageStore";
 
 const route = useRoute();
 const router = useRouter();

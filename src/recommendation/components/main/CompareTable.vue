@@ -1,8 +1,8 @@
 <script setup>
 import { computed } from "vue";
 import { ChevronLeft, ShoppingCart } from "lucide-vue-next";
-import { NEIGHBORHOODS } from "../../../utils/mockData";
-import TheFooter from "../../common/TheFooter.vue";
+import { NEIGHBORHOODS } from "../../../common/utils/mockData";
+import TheFooter from "../../../common/components/TheFooter.vue";
 
 const props = defineProps({ compareList: { type: Array, required: true } });
 const emit = defineEmits(["back"]);

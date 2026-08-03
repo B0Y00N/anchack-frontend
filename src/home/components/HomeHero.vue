@@ -1,6 +1,6 @@
 <script setup>
 import { ArrowRight, Map } from "lucide-vue-next";
-import SproutLogo from "../common/SproutLogo.vue";
+import SproutLogo from "../../common/components/SproutLogo.vue";
 
 defineEmits(["start", "navigate"]);
 </script>

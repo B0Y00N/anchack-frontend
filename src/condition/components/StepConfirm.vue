@@ -9,7 +9,7 @@ import Chip from "./Chip.vue";
 import PriorityChip from "./PriorityChip.vue";
 import MustHaveChip from "./MustHaveChip.vue";
 import InlineEditSection from "./InlineEditSection.vue";
-import { PRIORITY_OPTIONS, MUST_HAVE_OPTIONS, HOUSING_OPTIONS, AREA_WITH_PYEONG } from "../../utils/mockData";
+import { PRIORITY_OPTIONS, MUST_HAVE_OPTIONS, HOUSING_OPTIONS, AREA_WITH_PYEONG } from "../../common/utils/mockData";
 
 const props = defineProps({ state: { type: Object, required: true } });
 const emit = defineEmits(["update", "submit", "prev"]);

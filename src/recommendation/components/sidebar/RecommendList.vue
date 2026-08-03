@@ -2,7 +2,7 @@
 import { ref } from "vue";
 import { AlertCircle, Check, BookOpen, RefreshCw, TrendingUp } from "lucide-vue-next";
 import NeighborhoodCard from "./NeighborhoodCard.vue";
-import { NEIGHBORHOODS, RELAXATION_HINTS } from "../../../utils/mockData";
+import { NEIGHBORHOODS, RELAXATION_HINTS } from "../../../common/utils/mockData";
 
 const props = defineProps({
   compareList: { type: Array, required: true },

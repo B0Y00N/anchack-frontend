@@ -1,11 +1,11 @@
 <script setup>
 import { ref, computed } from "vue";
 import { Dumbbell, Store, Hospital, Trees, Building2, Coffee, Shield, Home } from "lucide-vue-next";
-import ScoreBar from "../../common/ScoreBar.vue";
-import MiniBarChart from "../../common/MiniBarChart.vue";
-import NeighborhoodMap from "../../search-result/detail/NeighborhoodMap.vue";
-import TabReview from "./TabReview.vue";
-import { REVIEW_CATEGORIES } from "../../../utils/mockData";
+import ScoreBar from "../../common/components/ScoreBar.vue";
+import MiniBarChart from "../../common/components/MiniBarChart.vue";
+import NeighborhoodMap from "../../recommendation/components/detail/NeighborhoodMap.vue";
+import TabReview from "../../review/components/TabReview.vue";
+import { REVIEW_CATEGORIES } from "../../common/utils/mockData";
 
 const props = defineProps({
   district: { type: String, required: true },

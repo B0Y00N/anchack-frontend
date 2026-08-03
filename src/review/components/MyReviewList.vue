@@ -1,5 +1,5 @@
 <script setup>
-import StarDisplay from "../common/StarDisplay.vue";
+import StarDisplay from "../../common/components/StarDisplay.vue";
 
 const props = defineProps({
   reviews: { type: Array, required: true },

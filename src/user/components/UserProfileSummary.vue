@@ -1,5 +1,5 @@
 <script setup>
-import AvatarPlaceholder from "../common/AvatarPlaceholder.vue";
+import AvatarPlaceholder from "../../common/components/AvatarPlaceholder.vue";
 defineProps({ userProfile: { type: Object, required: true } });
 </script>
 <template>

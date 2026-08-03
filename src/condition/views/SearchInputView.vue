@@ -2,12 +2,12 @@
 import { computed } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useSearchStore } from "../stores/useSearchStore";
-import StepCommute from "../components/search-input/StepCommute.vue";
-import StepPriority from "../components/search-input/StepPriority.vue";
-import StepBudget from "../components/search-input/StepBudget.vue";
-import StepHousing from "../components/search-input/StepHousing.vue";
-import StepConfirm from "../components/search-input/StepConfirm.vue";
-import SearchLoading from "../components/search-input/SearchLoading.vue";
+import StepCommute from "../components/StepCommute.vue";
+import StepPriority from "../components/StepPriority.vue";
+import StepBudget from "../components/StepBudget.vue";
+import StepHousing from "../components/StepHousing.vue";
+import StepConfirm from "../components/StepConfirm.vue";
+import SearchLoading from "../components/SearchLoading.vue";
 
 const route = useRoute();
 const router = useRouter();

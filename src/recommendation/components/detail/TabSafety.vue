@@ -1,7 +1,7 @@
 <script setup>
 import { computed } from "vue";
 import { Shield } from "lucide-vue-next";
-import ScoreBar from "../../common/ScoreBar.vue";
+import ScoreBar from "../../../common/components/ScoreBar.vue";
 import NeighborhoodMap from "./NeighborhoodMap.vue";
 
 const props = defineProps({

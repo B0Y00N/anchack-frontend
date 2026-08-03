@@ -1,6 +1,6 @@
 <script setup>
 import { computed } from "vue";
-import { NEIGHBORHOODS, DONG_DATA } from "../../utils/mockData";
+import { NEIGHBORHOODS, DONG_DATA } from "../../common/utils/mockData";
 
 const props = defineProps({
   savedNeighborhoods: { type: Array, required: true },

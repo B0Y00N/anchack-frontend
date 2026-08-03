@@ -1,4 +1,4 @@
-import api from "./axios";
+import api from "../../common/api/axios";
 
 export const getSavedNeighborhoods = () => api.get("/mypage/neighborhoods");
 export const getSavedConditions = () => api.get("/mypage/conditions");

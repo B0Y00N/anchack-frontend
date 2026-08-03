@@ -1,6 +1,6 @@
 <script setup>
 import { ref } from "vue";
-import { SEOUL_DISTRICTS, EXPLORE_COLORS } from "../../../utils/mockData";
+import { SEOUL_DISTRICTS, EXPLORE_COLORS } from "../../common/utils/mockData";
 
 const props = defineProps({
   modelValue: { type: String, default: null }, // 선택된 구

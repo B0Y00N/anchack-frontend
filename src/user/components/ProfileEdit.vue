@@ -1,7 +1,7 @@
 <script setup>
 import { ref } from "vue";
 import { User } from "lucide-vue-next";
-import AvatarPlaceholder from "../common/AvatarPlaceholder.vue";
+import AvatarPlaceholder from "../../common/components/AvatarPlaceholder.vue";
 
 const props = defineProps({
   userProfile: { type: Object, required: true },

@@ -1,4 +1,4 @@
-import api from "./axios";
+import api from "../../common/api/axios";
 
 export const getReviews = (district, dong) => api.get("/reviews", { params: { district, dong } });
 export const createReview = (payload) => api.post("/reviews", payload);

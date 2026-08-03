@@ -1,7 +1,7 @@
 <script setup>
 import { computed } from "vue";
 import { Bus, ShieldCheck, Dumbbell, Coffee, Store, Hospital, Landmark, Trees, Home } from "lucide-vue-next";
-import { PRIORITY_META } from "../../utils/mockData";
+import { PRIORITY_META } from "../../common/utils/mockData";
 
 const ICONS = { Bus, ShieldCheck, Dumbbell, Coffee, Store, Hospital, Landmark, Trees, Home };
 const props = defineProps({

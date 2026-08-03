@@ -1,6 +1,6 @@
 <script setup>
 import { Home } from "lucide-vue-next";
-import MiniBarChart from "../../common/MiniBarChart.vue";
+import MiniBarChart from "../../../common/components/MiniBarChart.vue";
 
 defineProps({ n: { type: Object, required: true } });
 const emit = defineEmits(["listings"]);

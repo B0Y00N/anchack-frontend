@@ -1,8 +1,8 @@
 <script setup>
 import { ref, computed } from "vue";
 import { ChevronLeft, Filter, ExternalLink } from "lucide-vue-next";
-import { MOCK_LISTINGS, MOCK_TRANSACTIONS } from "../../../utils/mockData";
-import TheFooter from "../../common/TheFooter.vue";
+import { MOCK_LISTINGS, MOCK_TRANSACTIONS } from "../../../common/utils/mockData";
+import TheFooter from "../../../common/components/TheFooter.vue";
 
 defineProps({ neighborhoodId: { type: String, required: true } });
 const emit = defineEmits(["back"]);

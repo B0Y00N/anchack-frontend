@@ -1,6 +1,6 @@
 <script setup>
 import { ref } from "vue";
-import StarDisplay from "../../common/StarDisplay.vue";
+import StarDisplay from "../../common/components/StarDisplay.vue";
 
 const props = defineProps({
   review: { type: Object, required: true },

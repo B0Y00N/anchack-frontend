@@ -1,7 +1,7 @@
 <script setup>
 import { computed } from "vue";
 import { Check, Store, Dumbbell, Trees, Hospital, ShoppingBag } from "lucide-vue-next";
-import { MUST_HAVE_META } from "../../utils/mockData";
+import { MUST_HAVE_META } from "../../common/utils/mockData";
 
 const ICONS = { Store, Dumbbell, Trees, Hospital, ShoppingBag };
 const props = defineProps({ label: { type: String, required: true }, selected: { type: Boolean, default: false } });

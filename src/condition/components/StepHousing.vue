@@ -1,7 +1,7 @@
 <script setup>
 import SearchStepLayout from "./SearchStepLayout.vue";
 import Chip from "./Chip.vue";
-import { HOUSING_OPTIONS, AREA_WITH_PYEONG } from "../../utils/mockData";
+import { HOUSING_OPTIONS, AREA_WITH_PYEONG } from "../../common/utils/mockData";
 
 const props = defineProps({ state: { type: Object, required: true } });
 const emit = defineEmits(["update", "next", "prev"]);

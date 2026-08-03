@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed } from "vue";
 import { X } from "lucide-vue-next";
-import { SEOUL_DISTRICTS, LANDMARKS } from "../../utils/mockData";
+import { SEOUL_DISTRICTS, LANDMARKS } from "../../common/utils/mockData";
 
 const props = defineProps({
   modelValue: { type: Array, required: true }, // 선택된 구 이름 배열

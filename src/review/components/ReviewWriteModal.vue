@@ -1,8 +1,8 @@
 <script setup>
 import { ref, computed } from "vue";
 import { X, Check } from "lucide-vue-next";
-import StarInput from "../../common/StarInput.vue";
-import { REVIEW_CATEGORIES } from "../../../utils/mockData";
+import StarInput from "../../common/components/StarInput.vue";
+import { REVIEW_CATEGORIES } from "../../common/utils/mockData";
 
 const props = defineProps({
   district: { type: String, required: true },
