@@ -1,0 +1,7 @@
+<script setup>
+import { cn } from "../../lib/utils";
+defineProps({ class: { type: String, default: "" } });
+</script>
+<template>
+  <li data-slot="breadcrumb-item" :class="cn('inline-flex items-center gap-1.5', $props.class)"><slot /></li>
+</template>
