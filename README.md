@@ -5,7 +5,10 @@
 ## 실행 방법
 
 ```bash
-npm install
+npm i
+npm install @tailwindcss/vite
+npm install lucide-vue-next
+npm install tw-animate-css
 npm run dev
 ```
 
