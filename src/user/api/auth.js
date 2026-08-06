@@ -1,24 +1,92 @@
-import axios from 'axios'
+import axios from "axios";
 
-console.log('API BASE URL:', import.meta.env.VITE_API_BASE_URL)
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+
+console.log("API BASE URL:", API_BASE_URL);
 
 const api = axios.create({
-  // baseURL: 'http://localhost:8080/kakao-login-backend', // WAS 배포 컨텍스트 경로에 맞게 수정
-  baseURL: import.meta.env.VITE_API_BASE_URL,
-  withCredentials: true, // 세션 쿠키 주고받기 위해 필수
-})
+  baseURL: API_BASE_URL,
+  headers: {
+    "Content-Type": "application/json",
+  },
 
-// 카카오 인가 코드를 백엔드로 전달 -> 로그인 처리
+  // 백엔드에서 세션도 함께 사용하지 않는다면 생략 가능
+  withCredentials: true,
+});
+
+// JWT 없이 호출할 수 있는 API
+const publicPaths = [
+  "/api/auth/kakao/callback",
+];
+
+api.interceptors.request.use(
+  (config) => {
+    const accessToken = localStorage.getItem("accessToken");
+    const tokenType =
+      localStorage.getItem("tokenType") || "Bearer";
+
+    const isPublicRequest = publicPaths.some(
+      (path) => config.url === path,
+    );
+
+    console.log("요청 URL:", config.url);
+    console.log("공개 요청 여부:", isPublicRequest);
+    console.log(
+      "전송할 JWT 존재 여부:",
+      Boolean(accessToken && !isPublicRequest),
+    );
+
+    if (accessToken && !isPublicRequest) {
+      config.headers.Authorization =
+        `${tokenType} ${accessToken}`;
+    }
+
+    return config;
+  },
+  (error) => Promise.reject(error),
+);
+
+api.interceptors.response.use(
+  (response) => response,
+
+  (error) => {
+    const status = error.response?.status;
+    const requestUrl = error.config?.url;
+
+    // 로그인 요청 자체의 401은 토큰 만료 처리에서 제외
+    const isLoginRequest =
+      requestUrl === "/api/auth/kakao/callback";
+
+    if (status === 401 && !isLoginRequest) {
+      localStorage.removeItem("accessToken");
+      localStorage.removeItem("tokenType");
+    }
+
+    return Promise.reject(error);
+  },
+);
+
+// 카카오 인가 코드를 백엔드로 전달
 export function loginWithKakao(code) {
-  return api.post('/api/auth/kakao/callback', { code })
+  return api.post("/api/auth/kakao/callback", {
+    code,
+  });
 }
 
-// 현재 로그인된 사용자 정보 조회
+// 현재 로그인한 사용자 정보 조회
 export function fetchMe() {
-  return api.get('/api/auth/me')
+  return api.get("/api/auth/me");
 }
 
-// 로그아웃 (세션 무효화)
-export function logout() {
-  return api.post('/api/auth/logout')
+// 로그아웃
+export async function logout() {
+  try {
+    return await api.post("/api/auth/logout");
+  } finally {
+    // 서버 요청 성공 여부와 관계없이 프론트 JWT 제거
+    localStorage.removeItem("accessToken");
+    localStorage.removeItem("tokenType");
+  }
 }
+
+export default api;
