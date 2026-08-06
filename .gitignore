@@ -14,7 +14,8 @@ dist-ssr/
 coverage/
 
 # Environment variables
-.env*
+.env
+!.env.example
 *.local
 
 # OS files
