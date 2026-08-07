@@ -1,33 +1,55 @@
 <script setup>
-import { ref, computed } from "vue";
-import { useRoute, useRouter } from "vue-router";
+import { computed, ref } from "vue";
+import { useRouter } from "vue-router";
+
 import { useAuthStore } from "../../user/stores/useAuthStore";
 import { useMyPageStore } from "../stores/useMyPageStore";
+
 import TheFooter from "../../common/components/TheFooter.vue";
 import UserProfileSummary from "../../user/components/UserProfileSummary.vue";
 import MyPageTabs from "../components/MyPageTabs.vue";
-import ProfileEdit from "../../user/components/ProfileEdit.vue";
 import SavedNeighborhoodList from "../../region/components/SavedNeighborhoodList.vue";
 import SavedConditionList from "../../condition/components/SavedConditionList.vue";
 import MyReviewList from "../../review/components/MyReviewList.vue";
 import ReviewEditModal from "../../review/components/ReviewEditModal.vue";
 
-const route = useRoute();
 const router = useRouter();
+
 const auth = useAuthStore();
 const mypage = useMyPageStore();
 
-const tab = ref(route.path === "/mypage/favorites" ? "neighborhoods" : "profile");
+const userProfile = computed(() => auth.user);
+
+// 기본 탭 : 관심 동네
+const tab = ref("neighborhoods");
+
 const editingReview = ref(null);
 
-const myReviews = computed(() => mypage.allReviews.slice(0, 20));
+const myReviews = computed(() => {
+  return mypage.allReviews.slice(0, 20);
+});
 
 const tabs = computed(() => [
-  { key: "profile", label: "프로필" },
-  { key: "neighborhoods", label: "관심 동네", count: mypage.savedNeighborhoods.length },
-  { key: "conditions", label: "저장한 조건", count: mypage.savedConditions.length },
-  { key: "results", label: "저장된 결과", count: mypage.savedConditions.length },
-  { key: "reviews", label: "내가 쓴 리뷰", count: myReviews.value.length },
+  {
+    key: "neighborhoods",
+    label: "관심 동네",
+    count: mypage.savedNeighborhoods.length,
+  },
+  {
+    key: "conditions",
+    label: "저장한 조건",
+    count: mypage.savedConditions.length,
+  },
+  {
+    key: "results",
+    label: "저장된 결과",
+    count: mypage.savedConditions.length,
+  },
+  {
+    key: "reviews",
+    label: "내가 쓴 리뷰",
+    count: myReviews.value.length,
+  },
 ]);
 
 function navigate(page) {
@@ -35,42 +57,103 @@ function navigate(page) {
     results: "/search/results",
     step1: "/search/step/1",
     explore: "/explore",
-    detail: "/search/results", // 상세 대상 id가 없어 목록으로 이동
+    detail: "/search/results",
   };
+
   router.push(routeMap[page] || "/");
 }
 
 function deleteCondition(id) {
   mypage.deleteCondition(id);
 }
-function loadResult(condition) {
-  // TODO: search store에 condition.state를 반영한 뒤 결과 화면으로 이동
+
+function loadResult() {
+  // TODO: 검색 조건을 검색 Store에 적용한다.
   router.push("/search/results");
 }
-function saveReview(updated) {
-  mypage.updateReview(updated);
+
+/*
+ * UserProfileSummary에서 전달받은 닉네임을
+ * Auth Store의 사용자 정보에 반영한다.
+ */
+function updateNickname(updatedUser) {
+  auth.setUser({
+    ...auth.user,
+    ...updatedUser,
+  });
+}
+
+function saveReview(updatedReview) {
+  mypage.updateReview(updatedReview);
   editingReview.value = null;
 }
+
 function deleteReview(id) {
-  mypage.allReviews = mypage.allReviews.filter((x) => x.id !== id);
+  mypage.allReviews = mypage.allReviews.filter(
+    (review) => review.id !== id,
+  );
 }
 </script>
 
 <template>
   <div class="min-h-screen bg-background pt-[60px]">
-    <ReviewEditModal v-if="editingReview" :review="editingReview" @close="editingReview = null" @save="saveReview" />
+    <ReviewEditModal
+      v-if="editingReview"
+      :review="editingReview"
+      @close="editingReview = null"
+      @save="saveReview"
+    />
 
     <div class="border-b border-border bg-white">
-      <UserProfileSummary :user-profile="auth.userProfile" />
-      <MyPageTabs v-model="tab" :tabs="tabs" />
+      <UserProfileSummary
+        v-if="userProfile"
+        :user-profile="userProfile"
+        @save="updateNickname"
+      />
+
+      <div
+        v-else
+        class="max-w-4xl mx-auto px-8 py-8 text-sm text-muted-foreground"
+      >
+        사용자 정보를 불러오는 중입니다.
+      </div>
+
+      <MyPageTabs
+        v-model="tab"
+        :tabs="tabs"
+      />
     </div>
 
     <div class="max-w-4xl mx-auto px-8 py-8">
-      <ProfileEdit v-if="tab === 'profile'" :user-profile="auth.userProfile" :is-social-login="auth.isSocialLogin" @save="auth.updateProfile" />
-      <SavedNeighborhoodList v-else-if="tab === 'neighborhoods'" :saved-neighborhoods="mypage.savedNeighborhoods" @navigate="navigate" />
-      <SavedConditionList v-else-if="tab === 'conditions'" mode="conditions" :saved-conditions="mypage.savedConditions" @navigate="navigate" @delete="deleteCondition" />
-      <SavedConditionList v-else-if="tab === 'results'" mode="results" :saved-conditions="mypage.savedConditions" @navigate="navigate" @load="loadResult" />
-      <MyReviewList v-else-if="tab === 'reviews'" :reviews="myReviews" @navigate="navigate" @edit="(r) => (editingReview = r)" @delete="deleteReview" />
+      <SavedNeighborhoodList
+        v-if="tab === 'neighborhoods'"
+        :saved-neighborhoods="mypage.savedNeighborhoods"
+        @navigate="navigate"
+      />
+
+      <SavedConditionList
+        v-else-if="tab === 'conditions'"
+        mode="conditions"
+        :saved-conditions="mypage.savedConditions"
+        @navigate="navigate"
+        @delete="deleteCondition"
+      />
+
+      <SavedConditionList
+        v-else-if="tab === 'results'"
+        mode="results"
+        :saved-conditions="mypage.savedConditions"
+        @navigate="navigate"
+        @load="loadResult"
+      />
+
+      <MyReviewList
+        v-else-if="tab === 'reviews'"
+        :reviews="myReviews"
+        @navigate="navigate"
+        @edit="(review) => (editingReview = review)"
+        @delete="deleteReview"
+      />
     </div>
 
     <TheFooter />
