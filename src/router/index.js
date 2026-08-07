@@ -4,6 +4,7 @@ const routes = [
   { path: "/", name: "home", component: () => import("../home/views/HomeView.vue") },
   { path: "/login", name: "login", component: () => import("../user/views/AuthView.vue") },
   { path: "/signup", name: "signup", component: () => import("../user/views/AuthView.vue") },
+  { path: "/oauth/callback/kakao", name: "kakao-callback", component: () => import("../user/views/KakaoCallback.vue") },
 
   { path: "/search/step/:step", name: "search-step", component: () => import("../condition/views/SearchInputView.vue") },
   { path: "/search/loading", name: "search-loading", component: () => import("../condition/views/SearchInputView.vue") },
