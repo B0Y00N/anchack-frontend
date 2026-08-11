@@ -12,6 +12,9 @@ import { DONG_DATA } from '@/common/utils/mockData'
 import { useNeighborhoodStore } from '@/region/stores/useNeighborhoodStore'
 import { useMyPageStore } from '@/mypage/stores/useMyPageStore'
 import { useDongStats } from '@/region/composables/useDongStats'
+import { getAdminDong } from '@/region/api/neighborhood.js'
+import { getReviews } from '@/review/api/review.js'
+import { mapReviewResponse } from '@/review/constants.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -35,6 +38,8 @@ const dongList = computed(() => {
   if (!selectedDistrict.value) return []
   return geojsonDongMap.value[selectedDistrict.value] ?? districtData.value?.dong ?? []
 })
+// ⚠️ 아래 구/동 목록 사이드바의 평점 미리보기는 아직 목(mock) 데이터를 사용한다.
+// 특정 동을 선택했을 때의 실제 리뷰 작성/조회/수정/삭제는 모두 실제 DB API로 동작한다(하단 참고).
 const districtReviews = computed(() =>
   selectedDistrict.value
     ? mypage.allReviews.filter((r) => r.district === selectedDistrict.value)
@@ -65,7 +70,53 @@ const saveToast = ref(null)
 const dongStats = computed(() =>
   selectedDong.value ? useDongStats(selectedDistrict.value, selectedDong.value) : null,
 )
-const dongReviewList = computed(() => (selectedDong.value ? dongReviews(selectedDong.value) : []))
+
+// 선택된 동의 실제 admin_dong_id 정보 (백엔드 /api/admin-dongs 조회 결과)
+const adminDong = ref(null)
+// 선택된 동의 실제 리뷰 목록 (백엔드 /api/reviews 조회 결과, mapReviewResponse로 변환됨)
+const dongReviewList = ref([])
+const reviewsLoading = ref(false)
+const reviewsError = ref('')
+
+async function loadDongReviews(district, dong) {
+  if (!district || !dong) {
+    adminDong.value = null
+    dongReviewList.value = []
+    reviewsError.value = ''
+    return
+  }
+
+  reviewsLoading.value = true
+  reviewsError.value = ''
+
+  try {
+    // 1) 화면에서 다루는 "구 이름 + 동 이름" 문자열을 실제 admin_dong_id로 변환
+    const adminDongRes = await getAdminDong(district, dong)
+    adminDong.value = adminDongRes.data
+
+    // 2) admin_dong_id 기준으로 실제 DB에 저장된 리뷰 목록 조회
+    const reviewsRes = await getReviews(adminDong.value.adminDongId)
+    dongReviewList.value = reviewsRes.data.map(mapReviewResponse)
+  } catch (error) {
+    console.error('리뷰 정보를 불러오지 못했습니다:', error.response?.data || error)
+    adminDong.value = null
+    dongReviewList.value = []
+    reviewsError.value =
+      error.response?.data?.message || '리뷰 정보를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.'
+  } finally {
+    reviewsLoading.value = false
+  }
+}
+
+// 라우트로 선택된 구/동이 바뀔 때마다 실제 리뷰 목록을 다시 불러온다.
+watch(
+  [selectedDistrict, selectedDong],
+  ([district, dong]) => {
+    loadDongReviews(district, dong)
+  },
+  { immediate: true },
+)
+
 const dongAvgOverall = computed(() =>
   dongReviewList.value.length > 0
     ? dongReviewList.value.reduce((s, r) => s + r.overallRating, 0) / dongReviewList.value.length
@@ -80,10 +131,21 @@ function toggleSaveDong() {
   mypage.toggleSavedNeighborhood(selectedDong.value)
   if (willSave) saveToast.value = '관심 동네에 추가되었습니다.'
 }
-function submitReview(review) {
-  mypage.addReview(review)
-  showReviewForm.value = false
+
+// 리뷰 작성 모달을 열기 전, 실제 admin_dong_id가 준비되었는지 확인한다.
+function openReviewForm() {
+  if (!adminDong.value) {
+    saveToast.value = reviewsError.value || '동네 정보를 불러오는 중이에요. 잠시 후 다시 시도해주세요.'
+    return
+  }
+  showReviewForm.value = true
 }
+
+// ReviewWriteModal이 실제 DB 저장에 성공하면 응답을 그대로 받아 목록 맨 앞에 반영한다.
+function handleReviewCreated(apiReview) {
+  dongReviewList.value = [mapReviewResponse(apiReview), ...dongReviewList.value]
+}
+
 function goListings() {
   nbhd.listingsFrom = 'nbhd-info'
   router.push('/search/results')
@@ -180,7 +242,7 @@ watch(hoveredDongName, (newDong, oldDong) => {
   }
 })
 
-const KAKAO_JS_KEY = import.meta.env.VITE_KAKAO_JS_KEY
+const KAKAO_JS_KEY = import.meta.env.VITE_KAKAO_MAP_JS_KEY
 
 onMounted(() => {
   loadKakaoMapScript()
@@ -391,11 +453,11 @@ function initMap() {
   <!-- 동 상세 화면 -->
   <div v-if="selectedDong" class="min-h-screen bg-background pt-15">
     <ReviewWriteModal
-      v-if="showReviewForm"
-      :district="selectedDistrict"
-      :dong="selectedDong"
+      v-if="showReviewForm && adminDong"
+      :admin-dong-id="adminDong.adminDongId"
+      :admin-dong-name="`${adminDong.guName} ${adminDong.name}`"
       @close="showReviewForm = false"
-      @submit="submitReview"
+      @created="handleReviewCreated"
     />
     <BaseToast v-if="saveToast" :message="saveToast" @done="saveToast = null" />
 
@@ -410,7 +472,7 @@ function initMap() {
         @back="router.push('/explore')"
         @toggle-save="toggleSaveDong"
         @listings="goListings"
-        @write-review="showReviewForm = true"
+        @write-review="openReviewForm"
       />
       <ExploreTabs
         :district="selectedDistrict"
@@ -418,7 +480,7 @@ function initMap() {
         :reviews="dongReviewList"
         :stats="dongStats?.stats"
         :hash="dongStats?.hash"
-        @write-review="showReviewForm = true"
+        @write-review="openReviewForm"
         @listings="goListings"
       />
     </div>
@@ -470,9 +532,9 @@ function initMap() {
             class="flex items-center gap-3 bg-card border border-border rounded-xl px-4 py-3"
           >
             <Check :size="14" class="text-primary shrink-0" /><span
-              class="text-sm text-foreground"
-              >{{ item }}</span
-            >
+            class="text-sm text-foreground"
+          >{{ item }}</span
+          >
           </div>
         </div>
       </div>
@@ -491,14 +553,14 @@ function initMap() {
               <div v-if="districtAvgRating > 0" class="flex items-center gap-2 mt-1">
                 <StarDisplay :rating="districtAvgRating" :size="13" />
                 <span class="text-xs text-muted-foreground"
-                  >{{ districtAvgRating.toFixed(1) }} ({{ districtReviews.length }}개 리뷰)</span
+                >{{ districtAvgRating.toFixed(1) }} ({{ districtReviews.length }}개 리뷰)</span
                 >
               </div>
             </div>
             <span
               v-if="districtData"
               class="text-xs bg-secondary text-primary font-semibold px-3 py-1 rounded-full"
-              >평균 월세 {{ districtData.avgRent }}만원</span
+            >평균 월세 {{ districtData.avgRent }}만원</span
             >
           </div>
         </div>
@@ -550,7 +612,7 @@ function initMap() {
                       <template v-if="dongAvg(dong) > 0">
                         <StarDisplay :rating="dongAvg(dong)" :size="10" />
                         <span class="text-xs text-muted-foreground"
-                          >{{ dongAvg(dong).toFixed(1) }} · {{ dongReviews(dong).length }}개</span
+                        >{{ dongAvg(dong).toFixed(1) }} · {{ dongReviews(dong).length }}개</span
                         >
                       </template>
                       <span v-else class="text-xs text-muted-foreground">리뷰 없음</span>
