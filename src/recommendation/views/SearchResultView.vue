@@ -62,55 +62,115 @@ function goListings() {
 </script>
 
 <template>
-  <SaveConditionModal v-if="showSaveModal" @close="showSaveModal = false" @save="saveCondition" />
-  <SavedConditionsListModal
-    v-if="showSavedListModal"
-    :saved-conditions="mypage.savedConditions"
-    @close="showSavedListModal = false"
-  />
-  <BaseToast v-if="toast" :message="toast" @done="toast = null" />
-
-  <div v-if="mode === 'results'" class="flex h-screen pt-[60px] overflow-hidden">
-    <RecommendList
-      :compare-list="nbhd.compareList"
-      :saved-neighborhoods="mypage.savedNeighborhoods"
-      :condition-saved="conditionSaved"
-      @detail="goDetail"
-      @compare="toggleCompare"
-      @toggle-save="toggleSaveWithToast"
-      @go-compare="router.push('/search/compare')"
-      @save-condition-click="showSaveModal = true"
-      @show-saved-list="showSavedListModal = true"
+  <transition name="modal-fade">
+    <SaveConditionModal v-if="showSaveModal" @close="showSaveModal = false" @save="saveCondition" />
+  </transition>
+  <transition name="modal-fade">
+    <SavedConditionsListModal
+      v-if="showSavedListModal"
+      :saved-conditions="mypage.savedConditions"
+      @close="showSavedListModal = false"
     />
-    <div class="flex-1 min-w-0 relative h-full p-4 bg-background">
-      <div
-        class="w-full h-full rounded-2xl overflow-hidden border border-border shadow-sm flex flex-col"
-      >
-        <ResultMap v-model="search.appState.selectedDistricts" :max="2" />
+  </transition>
+  <transition name="toast-pop">
+    <BaseToast v-if="toast" :message="toast" @done="toast = null" />
+  </transition>
+
+  <transition name="view-fade" mode="out-in">
+    <div v-if="mode === 'results'" key="results" class="flex h-screen pt-[60px] overflow-hidden">
+      <RecommendList
+        :compare-list="nbhd.compareList"
+        :saved-neighborhoods="mypage.savedNeighborhoods"
+        :condition-saved="conditionSaved"
+        @detail="goDetail"
+        @compare="toggleCompare"
+        @toggle-save="toggleSaveWithToast"
+        @go-compare="router.push('/search/compare')"
+        @save-condition-click="showSaveModal = true"
+        @show-saved-list="showSavedListModal = true"
+      />
+      <div class="flex-1 min-w-0 relative h-full p-4 bg-background">
+        <div
+          class="w-full h-full rounded-2xl overflow-hidden border border-border shadow-sm flex flex-col"
+        >
+          <ResultMap v-model="search.appState.selectedDistricts" :max="2" />
+        </div>
       </div>
     </div>
-  </div>
 
-  <DetailPanel
-    v-else-if="mode === 'detail' && selectedNeighborhood"
-    :n="selectedNeighborhood"
-    :is-saved="mypage.savedNeighborhoods.includes(route.params.id)"
-    :in-compare="nbhd.compareList.includes(route.params.id)"
-    @back="router.push('/search/results')"
-    @listings="goListings"
-    @toggle-save="toggleSaveWithToast(route.params.id)"
-    @compare="toggleCompare(route.params.id)"
-  />
+    <DetailPanel
+      v-else-if="mode === 'detail' && selectedNeighborhood"
+      key="detail"
+      :n="selectedNeighborhood"
+      :is-saved="mypage.savedNeighborhoods.includes(route.params.id)"
+      :in-compare="nbhd.compareList.includes(route.params.id)"
+      @back="router.push('/search/results')"
+      @listings="goListings"
+      @toggle-save="toggleSaveWithToast(route.params.id)"
+      @compare="toggleCompare(route.params.id)"
+    />
 
-  <CompareTable
-    v-else-if="mode === 'compare'"
-    :compare-list="nbhd.compareList"
-    @back="router.push('/search/results')"
-  />
+    <CompareTable
+      v-else-if="mode === 'compare'"
+      key="compare"
+      :compare-list="nbhd.compareList"
+      @back="router.push('/search/results')"
+    />
 
-  <ListingsPanel
-    v-else-if="mode === 'listings'"
-    :neighborhood-id="route.params.id"
-    @back="router.push(`/search/results/${route.params.id}`)"
-  />
+    <ListingsPanel
+      v-else-if="mode === 'listings'"
+      key="listings"
+      :neighborhood-id="route.params.id"
+      @back="router.push(`/search/results/${route.params.id}`)"
+    />
+  </transition>
 </template>
+
+<style scoped>
+.view-fade-enter-active,
+.view-fade-leave-active {
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
+}
+.view-fade-enter-from {
+  opacity: 0;
+  transform: translateY(10px);
+}
+.view-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-10px);
+}
+
+.modal-fade-enter-active,
+.modal-fade-leave-active {
+  transition: opacity 0.18s ease;
+}
+.modal-fade-enter-active :deep(.bg-card),
+.modal-fade-leave-active :deep(.bg-card) {
+  transition:
+    opacity 0.18s ease,
+    transform 0.18s ease;
+}
+.modal-fade-enter-from,
+.modal-fade-leave-to {
+  opacity: 0;
+}
+.modal-fade-enter-from :deep(.bg-card),
+.modal-fade-leave-to :deep(.bg-card) {
+  opacity: 0;
+  transform: scale(0.96) translateY(6px);
+}
+
+.toast-pop-enter-active,
+.toast-pop-leave-active {
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
+}
+.toast-pop-enter-from,
+.toast-pop-leave-to {
+  opacity: 0;
+  transform: translate(-50%, 12px);
+}
+</style>
