@@ -43,19 +43,19 @@ const mapElId = `infra-map-${Math.random().toString(36).slice(2)}`
 // CCTV·가로등·안전비상벨처럼 카카오에 업체/장소로 등록되지 않는 공공시설은
 // 실제 장소 데이터가 없으므로 매핑에서 제외하고, 기존 추정(모의) 배치를 그대로 사용한다.
 const CATEGORY_SEARCH_TERM = {
-  편의점: { code: 'CS2' },
+  '편의점': { code: 'CS2' },
   '카페/음식점': { keyword: '카페' },
   '병원/약국': { code: 'HP8' },
-  헬스장: { keyword: '헬스장' },
-  은행: { code: 'BK9' },
-  공원: { keyword: '공원' },
-  백화점: { keyword: '백화점' },
-  대형마트: { code: 'MT1' },
+  '헬스장': { keyword: '헬스장' },
+  '은행': { code: 'BK9' },
+  '공원': { keyword: '공원' },
+  '백화점': { keyword: '백화점' },
+  '대형마트': { code: 'MT1' },
   '경찰서/지구대': { keyword: '지구대' },
-  지하철역: { code: 'SW8' },
-  버스정류장: { keyword: '버스정류장' },
-  따릉이: { keyword: '따릉이 대여소' },
-  택시승강장: { keyword: '택시승강장' },
+  '지하철역': { code: 'SW8' },
+  '버스정류장': { keyword: '버스정류장' },
+  '따릉이': { keyword: '따릉이 대여소' },
+  '택시승강장': { keyword: '택시승강장' },
 }
 const MAX_PER_CATEGORY = 5
 
@@ -293,10 +293,18 @@ function createMarkerOverlay(lat, lng, cat, placeName) {
   el.className = 'infra-pin'
   el.style.setProperty('--pin-color', cat.color)
   const labelText = placeName ? truncateLabel(placeName) : cat.label
-  el.innerHTML = `
-    <span class="infra-pin-label">${cat.emoji ?? ''} ${labelText}</span>
-    <span class="infra-pin-dot"></span>
-  `
+
+  // placeName은 카카오 Places API 응답값(업주가 직접 등록하는 장소명)이라
+  // 신뢰할 수 없는 외부 입력이다. innerHTML 대신 textContent로 넣어 XSS를 막는다.
+  const label = document.createElement('span')
+  label.className = 'infra-pin-label'
+  label.textContent = `${cat.emoji ?? ''} ${labelText}`
+
+  const dot = document.createElement('span')
+  dot.className = 'infra-pin-dot'
+
+  el.append(label, dot)
+
   return new window.kakao.maps.CustomOverlay({
     position: new window.kakao.maps.LatLng(lat, lng),
     content: el,

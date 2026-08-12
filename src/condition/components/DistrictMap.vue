@@ -315,7 +315,7 @@ function initMap() {
     <div class="flex items-center justify-between mt-3">
       <div class="flex flex-wrap gap-2">
         <span v-if="modelValue.length === 0" class="text-xs text-muted-foreground"
-          >서울 전 지역 대상</span
+        >서울 전 지역 대상</span
         >
         <button
           v-for="id in modelValue"
