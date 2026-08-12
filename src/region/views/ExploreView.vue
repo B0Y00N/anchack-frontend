@@ -244,7 +244,7 @@ watch(hoveredDongName, (newDong, oldDong) => {
   }
 })
 
-const KAKAO_JS_KEY = import.meta.env.VITE_KAKAO_MAP_JS_KEY
+const KAKAO_JS_KEY = import.meta.env.VITE_KAKAO_JS_KEY
 
 onMounted(() => {
   loadKakaoMapScript()
