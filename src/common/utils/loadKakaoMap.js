@@ -12,7 +12,7 @@ export const loadKakaoMap = () => {
   }
 
   kakaoMapPromise = new Promise((resolve, reject) => {
-    const appKey = import.meta.env.VITE_KAKAO_MAP_JAVASCRIPT_KEY;
+    const appKey = import.meta.env.VITE_KAKAO_JS_KEY;
 
     if (!appKey) {
       reject(

@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { MAP_MARKER_SETS } from '@/common/utils/mockData.js'
+import { loadSeoulGeojson } from '@/common/utils/loadSeoulGeojson.js'
 
 const props = defineProps({
   dong: { type: String, required: true },
@@ -125,8 +126,7 @@ function initMap() {
     return
   }
 
-  fetch('/seoul_dong.geojson')
-    .then((res) => res.json())
+  loadSeoulGeojson()
     .then((geojson) => {
       if (!geojson || !geojson.features) return
 
@@ -293,18 +293,10 @@ function createMarkerOverlay(lat, lng, cat, placeName) {
   el.className = 'infra-pin'
   el.style.setProperty('--pin-color', cat.color)
   const labelText = placeName ? truncateLabel(placeName) : cat.label
-
-  // placeName은 카카오 Places API 응답값(업주가 직접 등록하는 장소명)이라
-  // 신뢰할 수 없는 외부 입력이다. innerHTML 대신 textContent로 넣어 XSS를 막는다.
-  const label = document.createElement('span')
-  label.className = 'infra-pin-label'
-  label.textContent = `${cat.emoji ?? ''} ${labelText}`
-
-  const dot = document.createElement('span')
-  dot.className = 'infra-pin-dot'
-
-  el.append(label, dot)
-
+  el.innerHTML = `
+    <span class="infra-pin-label">${cat.emoji ?? ''} ${labelText}</span>
+    <span class="infra-pin-dot"></span>
+  `
   return new window.kakao.maps.CustomOverlay({
     position: new window.kakao.maps.LatLng(lat, lng),
     content: el,

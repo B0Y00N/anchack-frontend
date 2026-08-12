@@ -5,6 +5,7 @@ import { Check, ChevronLeft, ChevronRight, Map } from 'lucide-vue-next'
 import ExploreHeader from '@/region/components/ExploreHeader.vue'
 import ExploreTabs from '@/region/components/ExploreTabs.vue'
 import ReviewWriteModal from '@/review/components/ReviewWriteModal.vue'
+import { loadSeoulGeojson } from '@/common/utils/loadSeoulGeojson.js'
 import StarDisplay from '@/common/components/StarDisplay.vue'
 import BaseToast from '@/common/components/BaseToast.vue'
 import TheFooter from '@/common/components/TheFooter.vue'
@@ -220,6 +221,7 @@ function getComplementaryColor(hex) {
 let dongPolygonMap = {}
 let originalPolygonColors = {}
 let complementaryPolygonColors = {}
+let kakaoMapInstance = null
 
 // document.getElementById('map') 하드코딩 대신 template ref 사용
 const mapContainer = ref(null)
@@ -242,7 +244,7 @@ watch(hoveredDongName, (newDong, oldDong) => {
   }
 })
 
-const KAKAO_JS_KEY = import.meta.env.VITE_KAKAO_JS_KEY
+const KAKAO_JS_KEY = import.meta.env.VITE_KAKAO_MAP_JS_KEY
 
 onMounted(() => {
   loadKakaoMapScript()
@@ -262,6 +264,7 @@ onBeforeUnmount(() => {
   // 다른 페이지에서도 400 에러가 반복해서 찍히는 원인이 된다).
   Object.values(dongPolygonMap).forEach((polygon) => polygon.setMap(null))
   dongPolygonMap = {}
+  kakaoMapInstance = null
 })
 
 function loadKakaoMapScript() {
@@ -294,8 +297,9 @@ function initMap() {
   // 타일 서버가 전부 400을 반환한다.
   const map = new window.kakao.maps.Map(container, {
     center: new window.kakao.maps.LatLng(37.5665, 126.978),
-    level: 8.45,
+    level: 8.5,
   })
+  kakaoMapInstance = map
 
   map.setZoomable(false)
   map.setDraggable(false)
@@ -308,8 +312,7 @@ function initMap() {
     map.relayout()
   }, 100)
 
-  fetch('/seoul_dong.geojson')
-    .then((response) => response.json())
+  loadSeoulGeojson()
     .then((geojson) => {
       if (!geojson || !geojson.features) return
 
@@ -649,5 +652,16 @@ function initMap() {
   background: #1a73e8;
   color: white;
   transform: scale(1.05);
+}
+
+:deep(div[style*='position: absolute'][style*='left: 0px'][style*='bottom: 0px']),
+:deep(img[src*='kakao']),
+:deep(a[href*='kakao.com']),
+:deep(.r_layer),
+:deep(.dacr),
+:deep([class*='copyright']) {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
 }
 </style>

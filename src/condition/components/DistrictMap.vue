@@ -1,6 +1,7 @@
 <script setup>
 import { ref, watch, onMounted, onBeforeUnmount } from 'vue'
 import { X } from 'lucide-vue-next'
+import { loadSeoulGeojson } from '@/common/utils/loadSeoulGeojson.js'
 
 const props = defineProps({
   modelValue: { type: Array, required: true },
@@ -170,8 +171,7 @@ function initMap() {
     map.relayout()
   }, 100)
 
-  fetch('/seoul_dong.geojson')
-    .then((response) => response.json())
+  loadSeoulGeojson()
     .then((geojson) => {
       if (!geojson || !geojson.features) return
 
@@ -315,7 +315,7 @@ function initMap() {
     <div class="flex items-center justify-between mt-3">
       <div class="flex flex-wrap gap-2">
         <span v-if="modelValue.length === 0" class="text-xs text-muted-foreground"
-        >서울 전 지역 대상</span
+          >서울 전 지역 대상</span
         >
         <button
           v-for="id in modelValue"
