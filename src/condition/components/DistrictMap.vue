@@ -1,6 +1,7 @@
 <script setup>
 import { ref, watch, onMounted, onBeforeUnmount } from 'vue'
 import { X } from 'lucide-vue-next'
+import { loadSeoulGeojson } from '@/common/utils/loadSeoulGeojson.js'
 
 const props = defineProps({
   modelValue: { type: Array, required: true },
@@ -170,8 +171,7 @@ function initMap() {
     map.relayout()
   }, 100)
 
-  fetch('/seoul_dong.geojson')
-    .then((response) => response.json())
+  loadSeoulGeojson()
     .then((geojson) => {
       if (!geojson || !geojson.features) return
 

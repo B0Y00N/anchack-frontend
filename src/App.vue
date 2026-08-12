@@ -5,13 +5,13 @@ import TheHeader from './common/components/TheHeader.vue'
 <template>
   <div class="min-h-screen bg-background" style="font-family: 'Noto Sans KR', sans-serif">
     <TheHeader />
-    <div class="relative">
+    <main class="relative">
       <router-view v-slot="{ Component }">
         <transition name="page-fade">
           <component :is="Component" />
         </transition>
       </router-view>
-    </div>
+    </main>
   </div>
 </template>
 

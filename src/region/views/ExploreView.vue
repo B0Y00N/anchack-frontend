@@ -5,6 +5,7 @@ import { Check, ChevronLeft, ChevronRight, Map } from 'lucide-vue-next'
 import ExploreHeader from '@/region/components/ExploreHeader.vue'
 import ExploreTabs from '@/region/components/ExploreTabs.vue'
 import ReviewWriteModal from '@/review/components/ReviewWriteModal.vue'
+import { loadSeoulGeojson } from '@/common/utils/loadSeoulGeojson.js'
 import StarDisplay from '@/common/components/StarDisplay.vue'
 import BaseToast from '@/common/components/BaseToast.vue'
 import TheFooter from '@/common/components/TheFooter.vue'
@@ -135,7 +136,8 @@ function toggleSaveDong() {
 // 리뷰 작성 모달을 열기 전, 실제 admin_dong_id가 준비되었는지 확인한다.
 function openReviewForm() {
   if (!adminDong.value) {
-    saveToast.value = reviewsError.value || '동네 정보를 불러오는 중이에요. 잠시 후 다시 시도해주세요.'
+    saveToast.value =
+      reviewsError.value || '동네 정보를 불러오는 중이에요. 잠시 후 다시 시도해주세요.'
     return
   }
   showReviewForm.value = true
@@ -242,7 +244,7 @@ watch(hoveredDongName, (newDong, oldDong) => {
   }
 })
 
-const KAKAO_JS_KEY = import.meta.env.VITE_KAKAO_MAP_JS_KEY
+const KAKAO_JS_KEY = import.meta.env.VITE_KAKAO_JS_KEY
 
 onMounted(() => {
   loadKakaoMapScript()
@@ -310,8 +312,7 @@ function initMap() {
     map.relayout()
   }, 100)
 
-  fetch('/seoul_dong.geojson')
-    .then((response) => response.json())
+  loadSeoulGeojson()
     .then((geojson) => {
       if (!geojson || !geojson.features) return
 
@@ -532,9 +533,9 @@ function initMap() {
             class="flex items-center gap-3 bg-card border border-border rounded-xl px-4 py-3"
           >
             <Check :size="14" class="text-primary shrink-0" /><span
-            class="text-sm text-foreground"
-          >{{ item }}</span
-          >
+              class="text-sm text-foreground"
+              >{{ item }}</span
+            >
           </div>
         </div>
       </div>
@@ -553,14 +554,14 @@ function initMap() {
               <div v-if="districtAvgRating > 0" class="flex items-center gap-2 mt-1">
                 <StarDisplay :rating="districtAvgRating" :size="13" />
                 <span class="text-xs text-muted-foreground"
-                >{{ districtAvgRating.toFixed(1) }} ({{ districtReviews.length }}개 리뷰)</span
+                  >{{ districtAvgRating.toFixed(1) }} ({{ districtReviews.length }}개 리뷰)</span
                 >
               </div>
             </div>
             <span
               v-if="districtData"
               class="text-xs bg-secondary text-primary font-semibold px-3 py-1 rounded-full"
-            >평균 월세 {{ districtData.avgRent }}만원</span
+              >평균 월세 {{ districtData.avgRent }}만원</span
             >
           </div>
         </div>
@@ -612,7 +613,7 @@ function initMap() {
                       <template v-if="dongAvg(dong) > 0">
                         <StarDisplay :rating="dongAvg(dong)" :size="10" />
                         <span class="text-xs text-muted-foreground"
-                        >{{ dongAvg(dong).toFixed(1) }} · {{ dongReviews(dong).length }}개</span
+                          >{{ dongAvg(dong).toFixed(1) }} · {{ dongReviews(dong).length }}개</span
                         >
                       </template>
                       <span v-else class="text-xs text-muted-foreground">리뷰 없음</span>
