@@ -6,6 +6,7 @@ import ExploreHeader from '@/region/components/ExploreHeader.vue'
 import ExploreTabs from '@/region/components/ExploreTabs.vue'
 import ReviewWriteModal from '@/review/components/ReviewWriteModal.vue'
 import { loadSeoulGeojson } from '@/common/utils/loadSeoulGeojson.js'
+import { loadKakaoMap } from '@/common/utils/loadKakaoMap.js'
 import StarDisplay from '@/common/components/StarDisplay.vue'
 import BaseToast from '@/common/components/BaseToast.vue'
 import TheFooter from '@/common/components/TheFooter.vue'
@@ -244,10 +245,12 @@ watch(hoveredDongName, (newDong, oldDong) => {
   }
 })
 
-const KAKAO_JS_KEY = import.meta.env.VITE_KAKAO_JS_KEY
-
 onMounted(() => {
-  loadKakaoMapScript()
+  // 지도 컴포넌트마다 각자 스크립트를 추가하면 중복 로드로 간헐적 실패가
+  // 생길 수 있어, 앱 전체에서 공유하는 loadKakaoMap() 싱글턴을 사용한다.
+  loadKakaoMap()
+    .then(() => initMap())
+    .catch((err) => console.error('카카오맵 스크립트 로드 실패.', err))
 })
 
 watch(selectedDong, (newVal) => {
@@ -267,23 +270,6 @@ onBeforeUnmount(() => {
   kakaoMapInstance = null
 })
 
-function loadKakaoMapScript() {
-  if (window.kakao && window.kakao.maps) {
-    window.kakao.maps.load(initMap)
-    return
-  }
-
-  const script = document.createElement('script')
-  script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${KAKAO_JS_KEY}&autoload=false&libraries=services`
-  script.onload = () => {
-    window.kakao.maps.load(initMap)
-  }
-  script.onerror = () => {
-    console.error('카카오맵 스크립트 로드 실패.')
-  }
-  document.head.appendChild(script)
-}
-
 function initMap() {
   const container = mapContainer.value
   if (!container) return
@@ -297,7 +283,7 @@ function initMap() {
   // 타일 서버가 전부 400을 반환한다.
   const map = new window.kakao.maps.Map(container, {
     center: new window.kakao.maps.LatLng(37.5665, 126.978),
-    level: 8.5,
+    level: 8.45,
   })
   kakaoMapInstance = map
 
@@ -652,16 +638,5 @@ function initMap() {
   background: #1a73e8;
   color: white;
   transform: scale(1.05);
-}
-
-:deep(div[style*='position: absolute'][style*='left: 0px'][style*='bottom: 0px']),
-:deep(img[src*='kakao']),
-:deep(a[href*='kakao.com']),
-:deep(.r_layer),
-:deep(.dacr),
-:deep([class*='copyright']) {
-  display: none !important;
-  visibility: hidden !important;
-  opacity: 0 !important;
 }
 </style>
