@@ -1,5 +1,6 @@
 <script setup>
-import { ref, watch, onMounted } from 'vue'
+import { ref, watch, onMounted, onBeforeUnmount } from 'vue'
+import { loadSeoulGeojson } from '@/common/utils/loadSeoulGeojson.js'
 
 const props = defineProps({
   highlighted: { type: String, default: '증산동' },
@@ -12,11 +13,36 @@ const props = defineProps({
       { id: '응암1동', district: '은평구', lat: 37.5987, lng: 126.923 },
       { id: '망원2동', district: '마포구', lat: 37.5561, lng: 126.9042 },
       { id: '신정3동', district: '양천구', lat: 37.5145, lng: 126.845 },
-      { id: '구로제2동', district: '구로구', lat: 37.4945, lng: 126.8815 },
+      { id: '구로2동', district: '구로구', lat: 37.4945, lng: 126.8815 },
     ],
   },
 })
 const emit = defineEmits(['update:modelValue', 'select-dong'])
+
+// document.getElementById('step-map') 하드코딩 대신 template ref 사용
+// (같은 컴포넌트 인스턴스가 2개 이상 존재해도 서로 다른 DOM을 정확히 참조)
+const mapContainer = ref(null)
+
+// 지도/geojson이 준비되기 전엔 빈 화면 대신 로딩 표시를 보여준다
+const isLoading = ref(true)
+const loadError = ref(false)
+
+// v-model="selectedDistricts" 비교 선택 기능
+function toggleSelectDistrict(id) {
+  const current = [...props.modelValue]
+  const idx = current.indexOf(id)
+
+  if (idx !== -1) {
+    current.splice(idx, 1)
+  } else {
+    if (current.length >= props.max) {
+      current.shift() // 최대 개수를 넘으면 가장 먼저 선택한 항목을 밀어냄
+    }
+    current.push(id)
+  }
+
+  emit('update:modelValue', current)
+}
 
 let districtPolygonMap = {}
 let originalPolygonColors = {}
@@ -25,6 +51,7 @@ let dongPathsMap = {}
 let selectedDongPolygon = null
 let kakaoMapInstance = null
 let overlays = []
+let lastHighlightedId = props.highlighted
 
 const RAINBOW_25_COLORS = [
   '#FF0000',
@@ -56,6 +83,12 @@ const RAINBOW_25_COLORS = [
 
 const KAKAO_JS_KEY = import.meta.env.VITE_KAKAO_JS_KEY
 
+// 카카오맵 지도 레벨은 정수(1~14)만 지원한다.
+// 소수점 레벨(예: 8.6)을 넘기면 타일 요청 URL에 그 값이 그대로 들어가
+// (예: .../latest/8.6/42/20.png) 존재하지 않는 디렉토리를 요청하게 되어
+// 타일 서버가 전부 400을 반환하고, 기본 축척 표시도 NaN으로 깨진다.
+const INITIAL_ZOOM_LEVEL = 8.45
+
 onMounted(() => {
   loadKakaoMapScript()
 })
@@ -73,12 +106,14 @@ function loadKakaoMapScript() {
   }
   script.onerror = () => {
     console.error('카카오맵 스크립트 로드 실패')
+    isLoading.value = false
+    loadError.value = true
   }
   document.head.appendChild(script)
 }
 
 function initMap() {
-  const container = document.getElementById('step-map')
+  const container = mapContainer.value
   if (!container) return
 
   districtPolygonMap = {}
@@ -92,20 +127,20 @@ function initMap() {
 
   const map = new window.kakao.maps.Map(container, {
     center: new window.kakao.maps.LatLng(37.5665, 126.978),
-    level: 8.6,
+    level: INITIAL_ZOOM_LEVEL,
   })
   kakaoMapInstance = map
 
+  // 카카오맵 이용약관상 로고/저작권 표기는 항상 노출되어야 하므로,
+  // DOM에서 임의로 지우지 않고 공식 API로 위치만 조정한다.
+  // (DOM 삭제 시 약관 위반으로 앱 키가 정지될 수 있음)
+  map.setCopyrightPosition(window.kakao.maps.CopyrightPosition.BOTTOMRIGHT, true)
+
   setTimeout(() => {
     map.relayout()
-    const unwantedElements = container.querySelectorAll(
-      'a[href*="kakao.com"], img[src*="kakao"], div[style*="position: absolute"][style*="left: 0px"][style*="bottom: 0px"], .r_layer, .dacr',
-    )
-    unwantedElements.forEach((el) => el.remove())
   }, 100)
 
-  fetch('/seoul_dong.geojson')
-    .then((response) => response.json())
+  loadSeoulGeojson()
     .then((geojson) => {
       if (!geojson || !geojson.features) return
 
@@ -195,12 +230,18 @@ function initMap() {
 
       // 최초 로드 시에는 하이라이트만 표시하고, 확대는 하지 않음
       renderRecommendationOverlays(props.highlighted, false)
+      isLoading.value = false
     })
-    .catch((err) => console.error('GeoJSON 로드 오류:', err))
+    .catch((err) => {
+      console.error('GeoJSON 로드 오류:', err)
+      isLoading.value = false
+      loadError.value = true
+    })
 }
 
 function renderRecommendationOverlays(targetId, shouldPan = false) {
   if (!kakaoMapInstance) return
+  lastHighlightedId = targetId
 
   overlays.forEach((o) => o.setMap(null))
   overlays = []
@@ -216,11 +257,13 @@ function renderRecommendationOverlays(targetId, shouldPan = false) {
     }
 
     const nodeDiv = document.createElement('div')
-    nodeDiv.className = `dong-badge ${isHigh ? 'highlighted' : 'normal'}`
+    const isSelected = props.modelValue.includes(item.id)
+    nodeDiv.className = `dong-badge ${isHigh ? 'highlighted' : 'normal'} ${isSelected ? 'selected' : ''}`
     nodeDiv.innerText = item.id
     nodeDiv.onclick = (e) => {
       e.stopPropagation()
       focusOnDong(item.id)
+      toggleSelectDistrict(item.id)
     }
 
     const customOverlay = new window.kakao.maps.CustomOverlay({
@@ -313,15 +356,58 @@ watch(
     }
   },
 )
+
+watch(
+  () => props.modelValue,
+  () => {
+    // 비교 선택(v-model) 상태가 바뀌면 뱃지의 선택 표시를 다시 그린다
+    if (kakaoMapInstance) {
+      renderRecommendationOverlays(lastHighlightedId, false)
+    }
+  },
+  { deep: true },
+)
+
+onBeforeUnmount(() => {
+  // 라우트 이동 시 폴리곤/오버레이가 지도 인스턴스와 함께 누수되는 것을 방지한다.
+  overlays.forEach((o) => o.setMap(null))
+  overlays = []
+  Object.values(districtPolygonMap).forEach((polygon) => polygon.setMap(null))
+  districtPolygonMap = {}
+  if (selectedDongPolygon) {
+    selectedDongPolygon.setMap(null)
+    selectedDongPolygon = null
+  }
+  kakaoMapInstance = null
+})
 </script>
 
 <template>
   <div class="relative w-full h-full">
     <div class="relative w-full h-full min-h-[480px]">
       <div
-        id="step-map"
+        ref="mapContainer"
         class="w-full h-full rounded-xl overflow-hidden shadow-sm border border-border"
       ></div>
+
+      <!-- 지도/geojson 로딩 중엔 빈 화면 대신 스피너를 보여준다 -->
+      <div
+        v-if="isLoading"
+        class="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-background/90 rounded-xl"
+      >
+        <div
+          class="w-8 h-8 rounded-full border-[3px] border-muted border-t-primary animate-spin"
+        ></div>
+        <p class="text-sm text-muted-foreground">지도를 불러오는 중이에요...</p>
+      </div>
+
+      <div
+        v-else-if="loadError"
+        class="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-background/90 rounded-xl px-6 text-center"
+      >
+        <p class="text-sm font-semibold text-foreground">지도를 불러오지 못했어요</p>
+        <p class="text-xs text-muted-foreground">네트워크 연결을 확인하고 새로고침해 주세요.</p>
+      </div>
     </div>
   </div>
 </template>
@@ -360,5 +446,10 @@ watch(
   font-size: 11px;
   font-weight: 600;
   border: 2px solid white;
+}
+
+:deep(.dong-badge.selected) {
+  outline: 2px solid #1565c0;
+  outline-offset: 1px;
 }
 </style>

@@ -16,6 +16,9 @@ export const DEFAULT_STATE = {
   minArea: '20m² 이상',
   priorities: ['치안', '운동', '식생활'],
   mustHave: ['편의점', '헬스장'],
+  // ResultMap의 동 비교 선택(v-model="search.appState.selectedDistricts")이 실제로
+  // 값을 갖도록 기본 필드를 추가합니다. (이전에는 키 자체가 없어 v-model이 죽어있었음)
+  selectedDistricts: [],
 }
 
 export const SEOUL_DISTRICTS = [
@@ -524,6 +527,8 @@ export const NEIGHBORHOODS = [
     convenience: 7,
     hospitals: 3,
     parks: 2,
+    department: 0,
+    mart: 0,
     culture: '하위 40%',
     rentDist: [
       { label: '50만원↓', count: 3 },
@@ -557,6 +562,8 @@ export const NEIGHBORHOODS = [
     convenience: 9,
     hospitals: 4,
     parks: 2,
+    department: 0,
+    mart: 1,
     culture: '중위 50%',
     rentDist: [
       { label: '50만원↓', count: 4 },
@@ -590,6 +597,8 @@ export const NEIGHBORHOODS = [
     convenience: 11,
     hospitals: 2,
     parks: 3,
+    department: 0,
+    mart: 0,
     culture: '상위 20%',
     rentDist: [
       { label: '50만원↓', count: 1 },
@@ -600,7 +609,7 @@ export const NEIGHBORHOODS = [
     ],
   },
   {
-    id: '구로제2동',
+    id: '구로2동',
     score: 73,
     commuteTime: 43,
     transfers: 2,
@@ -626,6 +635,8 @@ export const NEIGHBORHOODS = [
     convenience: 9,
     hospitals: 3,
     parks: 2,
+    department: 0,
+    mart: 0,
     culture: '하위 35%',
     rentDist: [
       { label: '50만원↓', count: 4 },
@@ -659,6 +670,8 @@ export const NEIGHBORHOODS = [
     convenience: 4,
     hospitals: 1,
     parks: 5,
+    department: 0,
+    mart: 0,
     culture: '하위 25%',
     rentDist: [
       { label: '50만원↓', count: 7 },
