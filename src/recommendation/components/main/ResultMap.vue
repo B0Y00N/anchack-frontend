@@ -81,36 +81,27 @@ const RAINBOW_25_COLORS = [
   '#32CD32',
 ]
 
-const KAKAO_JS_KEY = import.meta.env.VITE_KAKAO_JS_KEY
+import { loadKakaoMap } from '@/common/utils/loadKakaoMap.js'
 
 // 카카오맵 지도 레벨은 정수(1~14)만 지원한다.
-// 소수점 레벨(예: 8.6)을 넘기면 타일 요청 URL에 그 값이 그대로 들어가
-// (예: .../latest/8.6/42/20.png) 존재하지 않는 디렉토리를 요청하게 되어
+// 소수점 레벨(예: 8.45)을 넘기면 타일 요청 URL에 그 값이 그대로 들어가
+// (예: .../latest/8.45/42/20.png) 존재하지 않는 디렉토리를 요청하게 되어
 // 타일 서버가 전부 400을 반환하고, 기본 축척 표시도 NaN으로 깨진다.
 const INITIAL_ZOOM_LEVEL = 8.45
 
 onMounted(() => {
-  loadKakaoMapScript()
+  // 지도 컴포넌트마다 각자 <script> 태그를 추가하면, 여러 지도가 거의 동시에
+  // 마운트될 때 카카오 SDK 스크립트가 중복으로 추가되어 로드가 간헐적으로
+  // 실패하는 문제가 있었다. loadKakaoMap()은 모듈 레벨에서 Promise를 캐싱해
+  // 스크립트를 앱 전체에서 딱 한 번만 추가하고, 이후 호출은 그 결과를 공유한다.
+  loadKakaoMap()
+    .then(() => initMap())
+    .catch((err) => {
+      console.error('카카오맵 스크립트 로드 실패', err)
+      isLoading.value = false
+      loadError.value = true
+    })
 })
-
-function loadKakaoMapScript() {
-  if (window.kakao && window.kakao.maps) {
-    window.kakao.maps.load(initMap)
-    return
-  }
-
-  const script = document.createElement('script')
-  script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${KAKAO_JS_KEY}&autoload=false&libraries=services`
-  script.onload = () => {
-    window.kakao.maps.load(initMap)
-  }
-  script.onerror = () => {
-    console.error('카카오맵 스크립트 로드 실패')
-    isLoading.value = false
-    loadError.value = true
-  }
-  document.head.appendChild(script)
-}
 
 function initMap() {
   const container = mapContainer.value
