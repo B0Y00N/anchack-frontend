@@ -52,39 +52,39 @@ function kakaoLogin() {
       </div>
 
       <div class="bg-card border border-border rounded-2xl p-8 shadow-sm">
-<!--        <div class="space-y-4 mb-6">-->
-<!--          <div>-->
-<!--            <label class="block text-sm font-semibold text-foreground mb-1.5">-->
-<!--              이메일-->
-<!--            </label>-->
+        <!--        <div class="space-y-4 mb-6">-->
+        <!--          <div>-->
+        <!--            <label class="block text-sm font-semibold text-foreground mb-1.5">-->
+        <!--              이메일-->
+        <!--            </label>-->
 
-<!--            <input-->
-<!--              type="email"-->
-<!--              placeholder="example@email.com"-->
-<!--              class="w-full bg-muted rounded-xl px-4 py-3 text-sm border-0 outline-none focus:ring-2 focus:ring-primary/30"-->
-<!--            />-->
-<!--          </div>-->
+        <!--            <input-->
+        <!--              type="email"-->
+        <!--              placeholder="example@email.com"-->
+        <!--              class="w-full bg-muted rounded-xl px-4 py-3 text-sm border-0 outline-none focus:ring-2 focus:ring-primary/30"-->
+        <!--            />-->
+        <!--          </div>-->
 
-<!--          <div>-->
-<!--            <label class="block text-sm font-semibold text-foreground mb-1.5">-->
-<!--              비밀번호-->
-<!--            </label>-->
+        <!--          <div>-->
+        <!--            <label class="block text-sm font-semibold text-foreground mb-1.5">-->
+        <!--              비밀번호-->
+        <!--            </label>-->
 
-<!--            <input-->
-<!--              type="password"-->
-<!--              placeholder="비밀번호를 입력하세요"-->
-<!--              class="w-full bg-muted rounded-xl px-4 py-3 text-sm border-0 outline-none focus:ring-2 focus:ring-primary/30"-->
-<!--            />-->
-<!--          </div>-->
-<!--        </div>-->
+        <!--            <input-->
+        <!--              type="password"-->
+        <!--              placeholder="비밀번호를 입력하세요"-->
+        <!--              class="w-full bg-muted rounded-xl px-4 py-3 text-sm border-0 outline-none focus:ring-2 focus:ring-primary/30"-->
+        <!--            />-->
+        <!--          </div>-->
+        <!--        </div>-->
 
-<!--        <button-->
-<!--          type="button"-->
-<!--          class="w-full bg-primary text-primary-foreground font-bold py-3.5 rounded-xl hover:bg-primary/90 transition-colors"-->
-<!--          @click="login"-->
-<!--        >-->
-<!--          로그인-->
-<!--        </button>-->
+        <!--        <button-->
+        <!--          type="button"-->
+        <!--          class="w-full bg-primary text-primary-foreground font-bold py-3.5 rounded-xl hover:bg-primary/90 transition-colors"-->
+        <!--          @click="login"-->
+        <!--        >-->
+        <!--          로그인-->
+        <!--        </button>-->
 
         <button
           type="button"
@@ -99,17 +99,17 @@ function kakaoLogin() {
           카카오로 로그인
         </button>
 
-<!--        <p class="text-center text-sm text-muted-foreground mt-5">-->
-<!--          아직 회원이 아니신가요?-->
+        <!--        <p class="text-center text-sm text-muted-foreground mt-5">-->
+        <!--          아직 회원이 아니신가요?-->
 
-<!--          <button-->
-<!--            type="button"-->
-<!--            class="text-primary font-semibold hover:underline"-->
-<!--            @click="router.push('/signup')"-->
-<!--          >-->
-<!--            회원가입-->
-<!--          </button>-->
-<!--        </p>-->
+        <!--          <button-->
+        <!--            type="button"-->
+        <!--            class="text-primary font-semibold hover:underline"-->
+        <!--            @click="router.push('/signup')"-->
+        <!--          >-->
+        <!--            회원가입-->
+        <!--          </button>-->
+        <!--        </p>-->
       </div>
     </div>
   </div>
