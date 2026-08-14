@@ -2,6 +2,7 @@
 import { ref, watch, onMounted, onBeforeUnmount } from 'vue'
 import { X } from 'lucide-vue-next'
 import { loadSeoulGeojson } from '@/common/utils/loadSeoulGeojson.js'
+import { loadKakaoMap } from '@/common/utils/loadKakaoMap.js'
 
 const props = defineProps({
   modelValue: { type: Array, required: true },
@@ -113,10 +114,12 @@ watch([() => props.modelValue, hoveredDistrict], () => {
   })
 })
 
-const KAKAO_JS_KEY = import.meta.env.VITE_KAKAO_JS_KEY
-
 onMounted(() => {
-  loadKakaoMapScript()
+  // 지도 컴포넌트마다 각자 스크립트를 추가하면 중복 로드로 간헐적 실패가
+  // 생길 수 있어, 앱 전체에서 공유하는 loadKakaoMap() 싱글턴을 사용한다.
+  loadKakaoMap()
+    .then(() => initMap())
+    .catch((err) => console.error('카카오맵 스크립트 로드 실패', err))
 })
 
 onBeforeUnmount(() => {
@@ -126,23 +129,6 @@ onBeforeUnmount(() => {
   districtPolygonMap = {}
   kakaoMapInstance = null
 })
-
-function loadKakaoMapScript() {
-  if (window.kakao && window.kakao.maps) {
-    window.kakao.maps.load(initMap)
-    return
-  }
-
-  const script = document.createElement('script')
-  script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${KAKAO_JS_KEY}&autoload=false&libraries=services`
-  script.onload = () => {
-    window.kakao.maps.load(initMap)
-  }
-  script.onerror = () => {
-    console.error('카카오맵 스크립트 로드 실패')
-  }
-  document.head.appendChild(script)
-}
 
 function initMap() {
   const container = mapContainer.value
@@ -315,7 +301,7 @@ function initMap() {
     <div class="flex items-center justify-between mt-3">
       <div class="flex flex-wrap gap-2">
         <span v-if="modelValue.length === 0" class="text-xs text-muted-foreground"
-          >서울 전 지역 대상</span
+        >서울 전 지역 대상</span
         >
         <button
           v-for="id in modelValue"
