@@ -1,6 +1,7 @@
 <script setup>
 import { ref, watch, onMounted, onBeforeUnmount } from 'vue'
 import { loadSeoulGeojson } from '@/common/utils/loadSeoulGeojson.js'
+import { loadKakaoMap } from '@/common/utils/loadKakaoMap.js'
 
 const props = defineProps({
   highlighted: { type: String, default: '증산동' },
@@ -80,8 +81,6 @@ const RAINBOW_25_COLORS = [
   '#9932CC',
   '#32CD32',
 ]
-
-import { loadKakaoMap } from '@/common/utils/loadKakaoMap.js'
 
 // 카카오맵 지도 레벨은 정수(1~14)만 지원한다.
 // 소수점 레벨(예: 8.45)을 넘기면 타일 요청 URL에 그 값이 그대로 들어가
@@ -235,6 +234,7 @@ function initMap() {
     })
     .catch((err) => {
       console.error('GeoJSON 로드 오류:', err)
+      if (disposed) return
       isLoading.value = false
       loadError.value = true
     })
