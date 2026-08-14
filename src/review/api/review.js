@@ -18,5 +18,16 @@ export const createReview = (payload) => api.post("/reviews", payload);
 export const updateReview = (id, payload) => api.put(`/reviews/${id}`, payload);
 export const deleteReview = (id) => api.delete(`/reviews/${id}`);
 
+/*
+ * 리뷰 좋아요 / 싫어요. reactionType: "LIKE" | "DISLIKE"
+ * 같은 반응을 다시 보내면 서버에서 취소 처리된다.
+ *
+ * [수정] review_reactions 테이블이 아직 없어 백엔드 엔드포인트(/reviews/{id}/reactions)
+ * 자체가 비활성화되어 있다. 이 함수를 호출하면 404가 나므로 ReviewCard.vue의 관련 UI와
+ * 함께 주석 처리했다. 기능이 다시 켜지면 이 주석도 함께 해제한다.
+ */
+// export const reactToReview = (reviewId, reactionType) =>
+//   api.post(`/reviews/${reviewId}/reactions`, { reactionType });
+
 // 리뷰 신고
 export const reportReview = (reviewId, reason) => api.post(`/reviews/${reviewId}/reports`, { reason });
