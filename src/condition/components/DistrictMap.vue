@@ -151,7 +151,7 @@ function initMap() {
   // 타일 요청 URL이 존재하지 않는 경로가 되어 타일 서버가 전부 400을 반환한다.
   const map = new window.kakao.maps.Map(container, {
     center: new window.kakao.maps.LatLng(37.5665, 126.978),
-    level: 9.4
+    level: 9
   })
   kakaoMapInstance = map
 
