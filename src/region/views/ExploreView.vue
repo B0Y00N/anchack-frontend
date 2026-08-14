@@ -245,23 +245,33 @@ watch(hoveredDongName, (newDong, oldDong) => {
   }
 })
 
+// 컴포넌트가 이미 언마운트된 뒤에 도착하는 비동기 콜백(SDK 로드, geojson fetch,
+// setTimeout)이 사라진 컨테이너에 지도를 다시 붙이거나 폴리곤을 새로 그리는 것을
+// 막기 위한 플래그. onBeforeUnmount에서 true로 바뀐다.
+let disposed = false
+
 onMounted(() => {
   // 지도 컴포넌트마다 각자 스크립트를 추가하면 중복 로드로 간헐적 실패가
   // 생길 수 있어, 앱 전체에서 공유하는 loadKakaoMap() 싱글턴을 사용한다.
   loadKakaoMap()
-    .then(() => initMap())
+    .then(() => {
+      if (disposed) return
+      initMap()
+    })
     .catch((err) => console.error('카카오맵 스크립트 로드 실패.', err))
 })
 
 watch(selectedDong, (newVal) => {
   if (!newVal) {
     nextTick(() => {
+      if (disposed) return
       initMap()
     })
   }
 })
 
 onBeforeUnmount(() => {
+  disposed = true
   // 페이지를 벗어난 뒤에도 지도 인스턴스/폴리곤이 살아남아 계속 타일을
   // 요청하는 것을 막는다 (컨테이너가 사라진 채로 계속 재시도하면
   // 다른 페이지에서도 400 에러가 반복해서 찍히는 원인이 된다).
@@ -283,7 +293,7 @@ function initMap() {
   // 타일 서버가 전부 400을 반환한다.
   const map = new window.kakao.maps.Map(container, {
     center: new window.kakao.maps.LatLng(37.5665, 126.978),
-    level: 8.45,
+    level: 8,
   })
   kakaoMapInstance = map
 
@@ -295,11 +305,13 @@ function initMap() {
   map.setCopyrightPosition(window.kakao.maps.CopyrightPosition.BOTTOMRIGHT, true)
 
   setTimeout(() => {
+    if (disposed) return
     map.relayout()
   }, 100)
 
   loadSeoulGeojson()
     .then((geojson) => {
+      if (disposed) return
       if (!geojson || !geojson.features) return
 
       const districtMap = {}

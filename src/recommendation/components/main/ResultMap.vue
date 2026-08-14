@@ -87,7 +87,11 @@ import { loadKakaoMap } from '@/common/utils/loadKakaoMap.js'
 // 소수점 레벨(예: 8.45)을 넘기면 타일 요청 URL에 그 값이 그대로 들어가
 // (예: .../latest/8.45/42/20.png) 존재하지 않는 디렉토리를 요청하게 되어
 // 타일 서버가 전부 400을 반환하고, 기본 축척 표시도 NaN으로 깨진다.
-const INITIAL_ZOOM_LEVEL = 8.45
+const INITIAL_ZOOM_LEVEL = 9
+
+// 컴포넌트가 이미 언마운트된 뒤에 도착하는 비동기 콜백(SDK 로드, geojson fetch,
+// setTimeout)이 사라진 컨테이너에 지도를 다시 붙이는 것을 막기 위한 플래그.
+let disposed = false
 
 onMounted(() => {
   // 지도 컴포넌트마다 각자 <script> 태그를 추가하면, 여러 지도가 거의 동시에
@@ -95,9 +99,13 @@ onMounted(() => {
   // 실패하는 문제가 있었다. loadKakaoMap()은 모듈 레벨에서 Promise를 캐싱해
   // 스크립트를 앱 전체에서 딱 한 번만 추가하고, 이후 호출은 그 결과를 공유한다.
   loadKakaoMap()
-    .then(() => initMap())
+    .then(() => {
+      if (disposed) return
+      initMap()
+    })
     .catch((err) => {
       console.error('카카오맵 스크립트 로드 실패', err)
+      if (disposed) return
       isLoading.value = false
       loadError.value = true
     })
@@ -128,11 +136,13 @@ function initMap() {
   map.setCopyrightPosition(window.kakao.maps.CopyrightPosition.BOTTOMRIGHT, true)
 
   setTimeout(() => {
+    if (disposed) return
     map.relayout()
   }, 100)
 
   loadSeoulGeojson()
     .then((geojson) => {
+      if (disposed) return
       if (!geojson || !geojson.features) return
 
       const districtColorMap = {}
@@ -360,6 +370,7 @@ watch(
 )
 
 onBeforeUnmount(() => {
+  disposed = true
   // 라우트 이동 시 폴리곤/오버레이가 지도 인스턴스와 함께 누수되는 것을 방지한다.
   overlays.forEach((o) => o.setMap(null))
   overlays = []

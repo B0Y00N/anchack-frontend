@@ -2,6 +2,7 @@
 import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { MAP_MARKER_SETS } from '@/common/utils/mockData.js'
 import { loadSeoulGeojson } from '@/common/utils/loadSeoulGeojson.js'
+import { loadKakaoMap } from '@/common/utils/loadKakaoMap.js'
 
 const props = defineProps({
   dong: { type: String, required: true },
@@ -36,7 +37,6 @@ function sr(a, b) {
   return x - Math.floor(x)
 }
 
-const KAKAO_JS_KEY = import.meta.env.VITE_KAKAO_JS_KEY
 const mapElId = `infra-map-${Math.random().toString(36).slice(2)}`
 
 // 카테고리별로 실제 카카오맵 장소 데이터를 조회하기 위한 매핑.
@@ -44,19 +44,19 @@ const mapElId = `infra-map-${Math.random().toString(36).slice(2)}`
 // CCTV·가로등·안전비상벨처럼 카카오에 업체/장소로 등록되지 않는 공공시설은
 // 실제 장소 데이터가 없으므로 매핑에서 제외하고, 기존 추정(모의) 배치를 그대로 사용한다.
 const CATEGORY_SEARCH_TERM = {
-  '편의점': { code: 'CS2' },
+  편의점: { code: 'CS2' },
   '카페/음식점': { keyword: '카페' },
   '병원/약국': { code: 'HP8' },
-  '헬스장': { keyword: '헬스장' },
-  '은행': { code: 'BK9' },
-  '공원': { keyword: '공원' },
-  '백화점': { keyword: '백화점' },
-  '대형마트': { code: 'MT1' },
+  헬스장: { keyword: '헬스장' },
+  은행: { code: 'BK9' },
+  공원: { keyword: '공원' },
+  백화점: { keyword: '백화점' },
+  대형마트: { code: 'MT1' },
   '경찰서/지구대': { keyword: '지구대' },
-  '지하철역': { code: 'SW8' },
-  '버스정류장': { keyword: '버스정류장' },
-  '따릉이': { keyword: '따릉이 대여소' },
-  '택시승강장': { keyword: '택시승강장' },
+  지하철역: { code: 'SW8' },
+  버스정류장: { keyword: '버스정류장' },
+  따릉이: { keyword: '따릉이 대여소' },
+  택시승강장: { keyword: '택시승강장' },
 }
 const MAX_PER_CATEGORY = 5
 
@@ -70,7 +70,15 @@ let overlays = []
 let geoLoaded = false
 
 onMounted(() => {
-  loadKakaoMapScript()
+  // 지도 컴포넌트마다 각자 스크립트를 추가하면 중복 로드로 간헐적 실패가
+  // 생길 수 있어, 앱 전체에서 공유하는 loadKakaoMap() 싱글턴을 사용한다.
+  loadKakaoMap()
+    .then(() => initMap())
+    .catch((err) => {
+      console.error('카카오맵 스크립트 로드 실패', err)
+      isLoading.value = false
+      loadError.value = true
+    })
 })
 
 onBeforeUnmount(() => {
@@ -81,25 +89,6 @@ onBeforeUnmount(() => {
     boundaryPolygon = null
   }
 })
-
-function loadKakaoMapScript() {
-  if (window.kakao && window.kakao.maps) {
-    window.kakao.maps.load(initMap)
-    return
-  }
-
-  const script = document.createElement('script')
-  script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${KAKAO_JS_KEY}&autoload=false&libraries=services`
-  script.onload = () => {
-    window.kakao.maps.load(initMap)
-  }
-  script.onerror = () => {
-    console.error('카카오맵 스크립트 로드 실패')
-    isLoading.value = false
-    loadError.value = true
-  }
-  document.head.appendChild(script)
-}
 
 function resolveDongKey(name) {
   if (dongBoundsMap[name]) return name
