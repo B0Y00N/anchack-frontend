@@ -1,7 +1,8 @@
 <script setup>
-import { computed } from "vue";
+import { computed, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useSearchStore } from "../stores/useSearchStore";
+import { useRecommendationStore } from "../../recommendation/stores/useRecommendationStore";
 import StepCommute from "../components/StepCommute.vue";
 import StepPriority from "../components/StepPriority.vue";
 import StepBudget from "../components/StepBudget.vue";
@@ -21,6 +22,7 @@ const STEP_LABELS = [
 const route = useRoute();
 const router = useRouter();
 const search = useSearchStore();
+const recommendation = useRecommendationStore();
 
 const step = computed(() => Number(route.params.step) || 1);
 const isLoading = computed(() => route.path === "/search/loading");
@@ -34,13 +36,27 @@ function goStep(n) {
 function submit() {
   router.push("/search/loading");
 }
+function startSearch() {
+  recommendation.submit(search.appState);
+}
+watch(isLoading, (loading) => {
+  if (loading) startSearch();
+}, { immediate: true });
+
 function onLoadingDone() {
   router.push("/search/results");
 }
 </script>
 
 <template>
-  <SearchLoading v-if="isLoading" @done="onLoadingDone" />
+  <SearchLoading
+    v-if="isLoading"
+    :status="recommendation.status"
+    :error-message="recommendation.errorMessage"
+    @done="onLoadingDone"
+    @retry="startSearch"
+    @back="goStep(5)"
+  />
 
   <!-- 프로그레스바(SearchProgressBar)를 여기서 딱 한 번만 렌더링한다.
        스텝마다 컴포넌트를 통째로 바꿔치기해도(v-if/else-if) 이 wrapper와
