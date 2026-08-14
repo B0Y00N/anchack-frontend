@@ -11,14 +11,34 @@ import DetailPanel from '../components/detail/DetailPanel.vue'
 import BaseToast from '../../common/components/BaseToast.vue'
 import { NEIGHBORHOODS } from '@/common/utils/mockData.js'
 import { useSearchStore } from '@/condition/stores/useSearchStore.js'
+import { useRecommendationStore } from '@/recommendation/stores/useRecommendationStore.js'
 import { useNeighborhoodStore } from '@/region/stores/useNeighborhoodStore.js'
 import { useMyPageStore } from '@/mypage/stores/useMyPageStore.js'
 
 const route = useRoute()
 const router = useRouter()
 const search = useSearchStore()
+const recommendation = useRecommendationStore()
 const nbhd = useNeighborhoodStore()
 const mypage = useMyPageStore()
+
+// 실제 API 응답을 카드가 쓰는 모양으로 다듬는다.
+// guName/dongName은 API_USER_CONDITIONS_REVISION_REQUEST.md의 P0 반영으로 추가된 필드.
+// 상세보기/비교용 정보(P1)는 아직 없어 상세 화면은 계속 토스트로 막아둔다.
+const neighborhoods = computed(() =>
+  recommendation.recommendations.map((r) => ({
+    id: r.adminDongId,
+    guName: r.guName,
+    dongName: r.dongName,
+    rank: r.rank,
+    score: r.totalScore,
+    dataCoverageRate: r.dataCoverageRate,
+    commuteTime: r.commuteTime,
+    transferCount: r.transferCount,
+    reasons: r.recommendationReason ? r.recommendationReason.split(',').map((s) => s.trim()) : [],
+    cautions: r.caution ? r.caution.split(',').map((s) => s.trim()) : [],
+  })),
+)
 
 const mode = computed(() => {
   if (route.path.endsWith('/compare')) return 'compare'
@@ -34,11 +54,13 @@ const toast = ref(null)
 
 const selectedNeighborhood = computed(() => NEIGHBORHOODS.find((n) => n.id === route.params.id))
 
-function goDetail(id) {
-  router.push(`/search/results/${id}`)
+// 행정동 상세 정보(이름/구/좌표 등)를 백엔드가 아직 제공하지 않아
+// 상세 보기/비교 화면은 빈 화면이 되므로, 대신 안내 토스트만 띄운다.
+function goDetail() {
+  toast.value = '동네 상세 정보는 곧 제공될 예정이에요.'
 }
-function toggleCompare(id) {
-  nbhd.toggleCompare(id)
+function toggleCompare() {
+  toast.value = '동네 비교 기능은 곧 제공될 예정이에요.'
 }
 function toggleSaveWithToast(id) {
   const wasAdded = !mypage.savedNeighborhoods.includes(id)
@@ -79,13 +101,14 @@ function goListings() {
   <transition name="view-fade" mode="out-in">
     <div v-if="mode === 'results'" key="results" class="flex h-screen pt-[60px] overflow-hidden">
       <RecommendList
+        :neighborhoods="neighborhoods"
         :compare-list="nbhd.compareList"
         :saved-neighborhoods="mypage.savedNeighborhoods"
         :condition-saved="conditionSaved"
         @detail="goDetail"
         @compare="toggleCompare"
         @toggle-save="toggleSaveWithToast"
-        @go-compare="router.push('/search/compare')"
+        @go-compare="toggleCompare"
         @save-condition-click="showSaveModal = true"
         @show-saved-list="showSavedListModal = true"
       />
