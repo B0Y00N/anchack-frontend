@@ -1,9 +1,6 @@
 <script setup>
 import { ref } from "vue";
-// 좋아요/싫어요(리뷰 반응) 기능은 review_reactions 테이블이 아직 없어 비활성화했다.
-// import { ThumbsUp, ThumbsDown } from "lucide-vue-next";
 import StarDisplay from "../../common/components/StarDisplay.vue";
-// import { reactToReview } from "../api/review.js";
 
 const props = defineProps({
   review: { type: Object, required: true },
@@ -19,44 +16,6 @@ function submitReport() {
   reported.value = true;
   showReportModal.value = false;
 }
-
-/*
- * 좋아요 / 싫어요
- *
- * review_reactions 테이블이 아직 DB에 없어서 기능 전체를 비활성화했다.
- * 테이블이 추가되면 아래 주석을 해제하고, 템플릿의 버튼 주석도 함께 해제하면 된다.
- */
-// const likeCount = ref(props.review.likeCount ?? 0);
-// const dislikeCount = ref(props.review.dislikeCount ?? 0);
-// const myReaction = ref(props.review.myReaction ?? null);
-// const reactionError = ref("");
-// const reacting = ref(false);
-//
-// async function react(reactionType) {
-//   if (reacting.value) return;
-//
-//   const reviewId = props.review.reviewId ?? props.review.id;
-//
-//   reacting.value = true;
-//   reactionError.value = "";
-//
-//   try {
-//     const response = await reactToReview(reviewId, reactionType);
-//
-//     likeCount.value = response.data.likeCount;
-//     dislikeCount.value = response.data.dislikeCount;
-//     myReaction.value = response.data.myReaction;
-//   } catch (error) {
-//     if (error.response?.status === 401) {
-//       reactionError.value = "로그인 후 이용할 수 있어요.";
-//     } else {
-//       reactionError.value =
-//         error.response?.data?.message || "반응을 처리하지 못했어요.";
-//     }
-//   } finally {
-//     reacting.value = false;
-//   }
-// }
 </script>
 
 <template>
@@ -112,45 +71,5 @@ function submitReport() {
         <StarDisplay :rating="val" :size="11" />
       </div>
     </div>
-
-    <!--
-      좋아요 / 싫어요
-      review_reactions 테이블이 아직 DB에 없어서 기능 전체를 비활성화했다.
-      테이블이 추가되면 위 script의 관련 주석과 함께 아래 버튼도 주석을 해제하면 된다.
-
-    <div class="flex items-center gap-2 pt-3 mt-3 border-t border-border/60">
-      <button
-        type="button"
-        :disabled="reacting"
-        @click="react('LIKE')"
-        :class="[
-          'flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors disabled:opacity-50',
-          myReaction === 'LIKE'
-            ? 'bg-primary text-primary-foreground'
-            : 'bg-secondary text-muted-foreground hover:text-primary',
-        ]"
-      >
-        <ThumbsUp :size="13" />
-        좋아요 {{ likeCount }}
-      </button>
-
-      <button
-        type="button"
-        :disabled="reacting"
-        @click="react('DISLIKE')"
-        :class="[
-          'flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors disabled:opacity-50',
-          myReaction === 'DISLIKE'
-            ? 'bg-red-500 text-white'
-            : 'bg-secondary text-muted-foreground hover:text-red-500',
-        ]"
-      >
-        <ThumbsDown :size="13" />
-        싫어요 {{ dislikeCount }}
-      </button>
-
-      <span v-if="reactionError" class="text-xs text-red-500 ml-1">{{ reactionError }}</span>
-    </div>
-    -->
   </div>
 </template>
