@@ -22,7 +22,7 @@ const emit = defineEmits(['detail', 'compare', 'toggle-save'])
           >{{ rank }}</span
         >
         <div>
-          <h3 class="font-bold text-foreground text-base">{{ n.id }}</h3>
+          <h3 class="font-bold text-foreground text-base">{{ n.guName }} {{ n.dongName }}</h3>
           <p class="text-xs font-bold text-primary">적합도 {{ n.score }}점</p>
         </div>
       </div>
@@ -35,29 +35,21 @@ const emit = defineEmits(['detail', 'compare', 'toggle-save'])
       </button>
     </div>
     <div class="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground mb-3">
-      <span class="flex items-center gap-1"
-        ><Clock :size="11" /> {{ n.commuteTime }}분 · 환승 {{ n.transfers }}회</span
+      <span v-if="n.commuteTime != null" class="flex items-center gap-1"
+        ><Clock :size="11" /> {{ n.commuteTime }}분 · 환승 {{ n.transferCount }}회</span
       >
-      <span>월세 {{ n.monthly }}만원</span>
-    </div>
-    <div class="flex flex-wrap gap-1.5 mb-4">
-      <span
-        v-for="tag in n.tags"
-        :key="tag"
-        class="bg-secondary text-primary text-xs px-2.5 py-1 rounded-full font-semibold"
-        >{{ tag }}</span
-      >
+      <span>데이터 커버리율 {{ n.dataCoverageRate }}%</span>
     </div>
     <div class="text-xs space-y-1.5 mb-4">
       <p
-        v-for="(p, i) in n.pros.slice(0, 2)"
+        v-for="(reason, i) in n.reasons.slice(0, 2)"
         :key="i"
         class="text-foreground/75 flex items-start gap-1.5"
       >
-        <Check :size="11" class="text-primary mt-0.5 flex-shrink-0" /> {{ p }}
+        <Check :size="11" class="text-primary mt-0.5 flex-shrink-0" /> {{ reason }}
       </p>
-      <p v-if="n.cons[0]" class="text-amber-700 flex items-start gap-1.5">
-        <span class="flex-shrink-0">⚠</span> {{ n.cons[0] }}
+      <p v-if="n.cautions[0]" class="text-amber-700 flex items-start gap-1.5">
+        <span class="flex-shrink-0">⚠</span> {{ n.cautions[0] }}
       </p>
     </div>
     <div class="flex gap-2" @click.stop>
