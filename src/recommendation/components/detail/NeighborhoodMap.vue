@@ -1,8 +1,27 @@
+<script>
+import { getAdminDongPlaces } from '@/region/api/neighborhood.js'
+
+// 진짜 모듈 스코프 캐시. <script setup> 최상단에 두면 컴포넌트 인스턴스(=탭 하나)가
+// 새로 마운트될 때마다 다시 실행돼 캐시가 매번 초기화되므로, 인스턴스와 무관하게
+// 딱 한 번만 평가되는 일반 <script> 블록에 둬야 탭을 오가도(통근<->치안<->생활 인프라)
+// 같은 동은 재요청되지 않는다.
+const placesCache = new Map() // adminDongId -> Promise<Place[]>
+function fetchAllPlaces(adminDongId) {
+  if (!placesCache.has(adminDongId)) {
+    const promise = getAdminDongPlaces(adminDongId).then((res) => res.data.data)
+    // 실패를 그대로 캐싱하면 이후 같은 동을 다시 열어도 재시도가 안 된다.
+    // 캐시에는 안 남기고, 호출부(fetchAllPlaces를 부른 쪽)에서 reject를 그대로 받게 둔다.
+    promise.catch(() => placesCache.delete(adminDongId))
+    placesCache.set(adminDongId, promise)
+  }
+  return placesCache.get(adminDongId)
+}
+</script>
+
 <script setup>
 import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { loadSeoulGeojson } from '@/common/utils/loadSeoulGeojson.js'
 import { loadKakaoMap } from '@/common/utils/loadKakaoMap.js'
-import { getAdminDongPlaces } from '@/region/api/neighborhood.js'
 
 const props = defineProps({
   dong: { type: String, required: true },
@@ -55,6 +74,7 @@ function toggleCat(label) {
 // 지도/geojson/장소 데이터가 준비되기 전엔 빈 화면 대신 로딩 표시를 보여준다
 const isLoading = ref(true)
 const loadError = ref(false)
+const placesError = ref(false)
 
 const mapElId = `infra-map-${Math.random().toString(36).slice(2)}`
 
@@ -65,27 +85,30 @@ let boundaryPolygon = null
 let overlays = []
 let geoLoaded = false
 
-// 동 하나의 places 응답(전체 카테고리)을 모듈 레벨에서 캐싱해, 같은 동을 다른 탭에서
-// 다시 열 때(통근<->치안<->생활 인프라) 매번 재요청하지 않는다.
-const placesCache = new Map() // adminDongId -> Promise<Place[]>
-function fetchAllPlaces(adminDongId) {
-  if (!placesCache.has(adminDongId)) {
-    placesCache.set(
-      adminDongId,
-      getAdminDongPlaces(adminDongId)
-        .then((res) => res.data.data)
-        .catch(() => []),
-    )
-  }
-  return placesCache.get(adminDongId)
-}
-
 const allPlaces = ref([])
 
 // 컴포넌트가 이미 언마운트된 뒤에 도착하는 비동기 콜백(SDK 로드, geojson fetch,
 // nextTick, places 조회 결과)이 사라진 컨테이너에 지도를 다시 붙이거나
 // 오버레이를 새로 그리는 것을 막기 위한 플래그.
 let disposed = false
+
+// adminDongId가 바뀔 수 있는 채로 컴포넌트 인스턴스가 재사용되는 경우(상세 페이지가
+// key 없이 n만 바뀌며 재사용될 때)가 있어서, 응답이 도착한 시점에도 여전히 같은 동을
+// 보고 있는 요청인지 확인한 뒤에만 화면에 반영한다(늦게 온 이전 동 응답이 최신 화면을
+// 덮어쓰는 것을 방지).
+function loadPlacesFor(adminDongId) {
+  placesError.value = false
+  fetchAllPlaces(adminDongId)
+    .then((places) => {
+      if (disposed || props.adminDongId !== adminDongId) return
+      allPlaces.value = places
+      if (kakaoMapInstance) renderMarkers()
+    })
+    .catch(() => {
+      if (disposed || props.adminDongId !== adminDongId) return
+      placesError.value = true
+    })
+}
 
 onMounted(() => {
   // 지도 컴포넌트마다 각자 스크립트를 추가하면 중복 로드로 간헐적 실패가
@@ -102,11 +125,7 @@ onMounted(() => {
       loadError.value = true
     })
 
-  fetchAllPlaces(props.adminDongId).then((places) => {
-    if (disposed) return
-    allPlaces.value = places
-    renderMarkers()
-  })
+  loadPlacesFor(props.adminDongId)
 })
 
 onBeforeUnmount(() => {
@@ -282,11 +301,7 @@ watch(
   () => [props.dong, props.adminDongId, props.hash, props.mode],
   () => {
     active.value = new Set(set.value.map((c) => c.label))
-    fetchAllPlaces(props.adminDongId).then((places) => {
-      if (disposed) return
-      allPlaces.value = places
-      if (kakaoMapInstance) renderMarkers()
-    })
+    loadPlacesFor(props.adminDongId)
     if (kakaoMapInstance) focusOnCurrentDong()
   },
 )
@@ -322,6 +337,19 @@ watch(active, () => {
           :style="{ background: active.has(cat.label) ? cat.color : '#D1D5DB' }"
         />
         {{ cat.label }}
+      </button>
+    </div>
+
+    <div
+      v-if="placesError"
+      class="px-5 py-2.5 border-b border-amber-200 bg-amber-50 flex items-center justify-between gap-3"
+    >
+      <p class="text-xs text-amber-800">장소 정보를 불러오지 못했어요.</p>
+      <button
+        @click="loadPlacesFor(adminDongId)"
+        class="text-xs font-semibold text-amber-800 underline flex-shrink-0"
+      >
+        다시 시도
       </button>
     </div>
 
