@@ -13,6 +13,7 @@ import { useSearchStore } from '@/condition/stores/useSearchStore.js'
 import { useRecommendationStore } from '@/recommendation/stores/useRecommendationStore.js'
 import { useNeighborhoodStore } from '@/region/stores/useNeighborhoodStore.js'
 import { useMyPageStore } from '@/mypage/stores/useMyPageStore.js'
+import { resolveLineColor } from '@/recommendation/utils/lineColors.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -33,8 +34,10 @@ onMounted(() => {
 // 실제 API 응답을 카드/상세 화면이 쓰는 모양으로 다듬는다.
 // guName/dongName/lat/lng는 P0, deposit/monthly/rentDist/cctv/police/crimeRate/safetyScore/
 // gyms/convenience/hospitals/parks/department/mart는 P1-b(admin-dongs/batch)에서 채워진다.
-// route/lineColor/lineNum/walkMin/subwayMin/transferMin(P1-a)은 아직 백엔드 협의 중이라
-// 이 값들을 쓰는 TabCommute.vue가 undefined를 안전하게 처리한다.
+// route/transportType/lineNum/vehicleType/walkMin/subwayMin/transferMin(P1-a)은 목적지를
+// 안 넣은 검색이면 없을 수 있어 TabCommute.vue가 undefined를 안전하게 처리한다.
+// lineColor는 백엔드가 안 주고(카카오 응답에 없음) transportType/lineNum/vehicleType으로
+// 프론트가 계산한다(lineColors.js 참고).
 const neighborhoods = computed(() =>
   recommendation.recommendations.map((r) => ({
     id: r.adminDongId,
@@ -45,6 +48,14 @@ const neighborhoods = computed(() =>
     dataCoverageRate: r.dataCoverageRate,
     commuteTime: r.commuteTime,
     transferCount: r.transferCount,
+    route: r.route,
+    transportType: r.transportType,
+    lineNum: r.lineNum,
+    vehicleType: r.vehicleType,
+    lineColor: resolveLineColor({ transportType: r.transportType, lineNum: r.lineNum, vehicleType: r.vehicleType }),
+    walkMin: r.walkMin,
+    subwayMin: r.subwayMin,
+    transferMin: r.transferMin,
     pros: r.recommendationReason ? r.recommendationReason.split(',').map((s) => s.trim()) : [],
     cons: r.caution ? r.caution.split(',').map((s) => s.trim()) : [],
     ...recommendation.detailsById[r.adminDongId],

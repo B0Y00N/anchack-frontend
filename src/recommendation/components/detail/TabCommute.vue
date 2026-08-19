@@ -1,6 +1,6 @@
 <script setup>
 import { computed } from 'vue'
-import { Footprints, Train, Clock } from 'lucide-vue-next'
+import { Footprints, Train, Bus, Clock } from 'lucide-vue-next'
 import DonutChart from '../../../common/components/DonutChart.vue'
 import NeighborhoodMap from './NeighborhoodMap.vue'
 
@@ -9,6 +9,8 @@ const props = defineProps({
   hash: { type: Number, required: true },
 })
 
+const isBus = computed(() => props.n.transportType === 'BUS')
+
 // 카카오 경로 응답이 step을 안 쪼개는 구간(환승 없는 단거리 등)이 있어
 // walkMin/subwayMin/transferMin은 각각 null일 수 있다. null인 구간은 도넛에서 빼고,
 // 하나도 안 남으면(전부 null) 도넛 자체를 렌더링하지 않는다(구간 합이 commuteTime과
@@ -16,7 +18,12 @@ const props = defineProps({
 const segments = computed(() =>
   [
     { label: '도보', icon: Footprints, min: props.n.walkMin, color: '#8ECBA9' },
-    { label: '지하철', icon: Train, min: props.n.subwayMin, color: props.n.lineColor },
+    {
+      label: isBus.value ? '버스' : '지하철',
+      icon: isBus.value ? Bus : Train,
+      min: props.n.subwayMin,
+      color: props.n.lineColor,
+    },
     { label: '환승 대기', icon: Clock, min: props.n.transferMin, color: '#C5D5CE' },
   ].filter((s) => s.min != null),
 )
@@ -37,7 +44,7 @@ const donutData = computed(() =>
           v-for="item in [
             { label: '예상 소요시간', value: `${n.commuteTime}분` },
             { label: '환승 횟수', value: `${n.transferCount}회` },
-            { label: '주요 노선', value: n.lineNum ? `${n.lineNum}호선` : '정보 없음' },
+            { label: '주요 노선', value: n.lineNum ? (isBus ? `${n.lineNum}번` : n.lineNum) : '정보 없음' },
           ]"
           :key="item.label"
           class="bg-card border border-border rounded-2xl p-5 text-center"
