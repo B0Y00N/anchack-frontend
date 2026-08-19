@@ -6,6 +6,7 @@ import ExploreHeader from '@/region/components/ExploreHeader.vue'
 import ExploreTabs from '@/region/components/ExploreTabs.vue'
 import ReviewWriteModal from '@/review/components/ReviewWriteModal.vue'
 import { loadSeoulGeojson } from '@/common/utils/loadSeoulGeojson.js'
+import { loadKakaoMap } from '@/common/utils/loadKakaoMap.js'
 import StarDisplay from '@/common/components/StarDisplay.vue'
 import BaseToast from '@/common/components/BaseToast.vue'
 import TheFooter from '@/common/components/TheFooter.vue'
@@ -222,6 +223,18 @@ let dongPolygonMap = {}
 let originalPolygonColors = {}
 let complementaryPolygonColors = {}
 let kakaoMapInstance = null
+// 구 이름 라벨(CustomOverlay)도 폴리곤과 함께 정리 대상에 넣는다.
+// (예전엔 이 목록이 없어서 언마운트/재초기화 시 라벨만 지도에 계속 남는 누수가 있었다)
+let mapOverlayList = []
+
+// initMap()이 다시 호출될 때마다(동 선택 해제로 전체 지도로 돌아올 때 등) 1씩 증가하는
+// 세션 번호. 언마운트뿐 아니라 "같은 컴포넌트 안에서 재초기화"되는 경우까지 함께 잡아내어,
+// 이전 세션에서 걸어둔 geojson fetch가 나중에 끝나도 최신 지도에 잘못 반영되지 않게 막는다.
+let mapSession = 0
+// SDK 로드가 끝나기 전에 컴포넌트가 사라진 경우를 막기 위한 최소한의 안전장치.
+// (mapSession은 initMap 내부에서만 증가하므로, initMap 진입 전 단계는 이걸로 방어한다)
+let disposed = false
+
 
 // document.getElementById('map') 하드코딩 대신 template ref 사용
 const mapContainer = ref(null)
@@ -244,60 +257,61 @@ watch(hoveredDongName, (newDong, oldDong) => {
   }
 })
 
-const KAKAO_JS_KEY = import.meta.env.VITE_KAKAO_JS_KEY
-
 onMounted(() => {
-  loadKakaoMapScript()
+  // 지도 컴포넌트마다 각자 스크립트를 추가하면 중복 로드로 간헐적 실패가
+  // 생길 수 있어, 앱 전체에서 공유하는 loadKakaoMap() 싱글턴을 사용한다.
+  loadKakaoMap()
+    .then(() => {
+      if (disposed) return
+      initMap()
+    })
+    .catch((err) => console.error('카카오맵 스크립트 로드 실패.', err))
 })
 
 watch(selectedDong, (newVal) => {
   if (!newVal) {
     nextTick(() => {
+      if (disposed) return
       initMap()
     })
   }
 })
 
 onBeforeUnmount(() => {
-  // 페이지를 벗어난 뒤에도 지도 인스턴스/폴리곤이 살아남아 계속 타일을
-  // 요청하는 것을 막는다 (컨테이너가 사라진 채로 계속 재시도하면
-  // 다른 페이지에서도 400 에러가 반복해서 찍히는 원인이 된다).
-  Object.values(dongPolygonMap).forEach((polygon) => polygon.setMap(null))
-  dongPolygonMap = {}
+  disposed = true
+  mapSession += 1
+  clearMapObjects()
   kakaoMapInstance = null
 })
 
-function loadKakaoMapScript() {
-  if (window.kakao && window.kakao.maps) {
-    window.kakao.maps.load(initMap)
-    return
-  }
+// 폴리곤 + 구 라벨 오버레이 + 호버 상태를 한 번에 정리한다.
+// onBeforeUnmount에서도, initMap() 재호출 시작 시점에도 동일하게 호출된다.
+function clearMapObjects() {
+  Object.values(dongPolygonMap).forEach((polygon) => polygon.setMap(null))
+  mapOverlayList.forEach((overlay) => overlay.setMap(null))
 
-  const script = document.createElement('script')
-  script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${KAKAO_JS_KEY}&autoload=false&libraries=services`
-  script.onload = () => {
-    window.kakao.maps.load(initMap)
-  }
-  script.onerror = () => {
-    console.error('카카오맵 스크립트 로드 실패.')
-  }
-  document.head.appendChild(script)
+  dongPolygonMap = {}
+  originalPolygonColors = {}
+  complementaryPolygonColors = {}
+  mapOverlayList = []
+  hoveredDongName.value = null
+
 }
 
 function initMap() {
   const container = mapContainer.value
   if (!container) return
 
-  dongPolygonMap = {}
-  originalPolygonColors = {}
-  complementaryPolygonColors = {}
+  const currentSession = ++mapSession
+  clearMapObjects()
 
   // 카카오맵 지도 레벨은 정수(1~14)만 지원한다. 소수점 레벨(8.45 등)을 넘기면
   // 타일 요청 URL(.../latest/8.45/46/22.png)이 존재하지 않는 경로가 되어
-  // 타일 서버가 전부 400을 반환한다.
+  // 타일 서버가 전부 400을 반환한다. 반드시 정수로만 넣는다.
+
   const map = new window.kakao.maps.Map(container, {
     center: new window.kakao.maps.LatLng(37.5665, 126.978),
-    level: 8.5,
+    level: 8,
   })
   kakaoMapInstance = map
 
@@ -309,6 +323,7 @@ function initMap() {
   map.setCopyrightPosition(window.kakao.maps.CopyrightPosition.BOTTOMRIGHT, true)
 
   setTimeout(() => {
+    if (currentSession !== mapSession) return
     map.relayout()
   }, 100)
 
@@ -444,9 +459,14 @@ function initMap() {
         })
 
         customOverlay.setMap(map)
+        mapOverlayList.push(customOverlay)
       })
     })
-    .catch((err) => console.error('GeoJSON 로드 오류:', err))
+    .catch((err) => {
+      if (currentSession !== mapSession) return
+      console.error('GeoJSON 로드 오류:', err)
+    })
+
 }
 </script>
 
@@ -536,6 +556,7 @@ function initMap() {
             class="text-sm text-foreground"
           >{{ item }}</span
           >
+
           </div>
         </div>
       </div>
@@ -555,6 +576,7 @@ function initMap() {
                 <StarDisplay :rating="districtAvgRating" :size="13" />
                 <span class="text-xs text-muted-foreground"
                 >{{ districtAvgRating.toFixed(1) }} ({{ districtReviews.length }}개 리뷰)</span
+
                 >
               </div>
             </div>
@@ -562,6 +584,7 @@ function initMap() {
               v-if="districtData"
               class="text-xs bg-secondary text-primary font-semibold px-3 py-1 rounded-full"
             >평균 월세 {{ districtData.avgRent }}만원</span
+
             >
           </div>
         </div>
@@ -614,6 +637,7 @@ function initMap() {
                         <StarDisplay :rating="dongAvg(dong)" :size="10" />
                         <span class="text-xs text-muted-foreground"
                         >{{ dongAvg(dong).toFixed(1) }} · {{ dongReviews(dong).length }}개</span
+
                         >
                       </template>
                       <span v-else class="text-xs text-muted-foreground">리뷰 없음</span>
@@ -652,16 +676,5 @@ function initMap() {
   background: #1a73e8;
   color: white;
   transform: scale(1.05);
-}
-
-:deep(div[style*='position: absolute'][style*='left: 0px'][style*='bottom: 0px']),
-:deep(img[src*='kakao']),
-:deep(a[href*='kakao.com']),
-:deep(.r_layer),
-:deep(.dacr),
-:deep([class*='copyright']) {
-  display: none !important;
-  visibility: hidden !important;
-  opacity: 0 !important;
 }
 </style>
