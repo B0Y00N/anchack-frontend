@@ -1,17 +1,5 @@
 <script setup>
-import { onMounted } from 'vue'
 import TheHeader from './common/components/TheHeader.vue'
-import { useAuthStore } from './user/stores/useAuthStore'
-
-// accessToken은 localStorage에 남아있어도 useAuthStore().user는 메모리 상태라
-// 새로고침/새 탭마다 비어있었다. 앱이 처음 뜰 때 한 번 복구해줘야
-// "로그인이 계속 풀린다"는 문제(실제로는 토큰이 아니라 user 상태만 사라진 것)가 없다.
-const authStore = useAuthStore()
-onMounted(() => {
-  authStore.loadUser().catch(() => {
-    // 토큰이 없거나 만료된 정상적인 경우도 포함되므로 별도 처리 없이 로그아웃 상태로 둔다.
-  })
-})
 </script>
 
 <template>
