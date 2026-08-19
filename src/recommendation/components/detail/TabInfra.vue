@@ -66,6 +66,6 @@ const items = computed(() => [
         </p>
       </div>
     </div>
-    <NeighborhoodMap :dong="n.id" :hash="hash" mode="infra" />
+    <NeighborhoodMap :dong="n.dongName" :admin-dong-id="n.id" :hash="hash" mode="infra" />
   </div>
 </template>

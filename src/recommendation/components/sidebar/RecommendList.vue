@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from "vue";
+import { computed, ref } from "vue";
 import { AlertCircle, Check, BookOpen, RefreshCw, TrendingUp } from "lucide-vue-next";
 import NeighborhoodCard from "./NeighborhoodCard.vue";
 import { RELAXATION_HINTS } from "../../../common/utils/mockData";
@@ -17,6 +17,12 @@ const emit = defineEmits(["detail", "compare", "toggle-save", "go-compare", "sav
 
 const activeFilter = ref("추천순");
 const FILTERS = ["추천순", "통근시간순", "예산순", "치안 관련 시설"];
+
+// compareList는 adminDongId 배열이라 그대로 보여주면 "360, 220 비교 중"처럼 숫자로
+// 뜬다. 목록에 있는 동 이름으로 바꿔서 표시한다.
+const compareNames = computed(() =>
+  props.compareList.map((id) => props.neighborhoods.find((n) => n.id === id)?.dongName ?? id).join(", "),
+);
 </script>
 
 <template>
@@ -53,7 +59,7 @@ const FILTERS = ["추천순", "통근시간순", "예산순", "치안 관련 시
     </div>
 
     <div v-if="compareList.length >= 2 && neighborhoods.length > 0" class="px-5 py-3 bg-secondary flex items-center justify-between border-b border-primary/15">
-      <div class="flex items-center gap-2 min-w-0"><RefreshCw :size="13" class="text-primary flex-shrink-0" /><span class="text-sm font-medium text-primary truncate">{{ compareList.join(", ") }} 비교 중</span></div>
+      <div class="flex items-center gap-2 min-w-0"><RefreshCw :size="13" class="text-primary flex-shrink-0" /><span class="text-sm font-medium text-primary truncate">{{ compareNames }} 비교 중</span></div>
       <button @click="emit('go-compare')" class="ml-3 flex-shrink-0 text-xs font-bold text-primary bg-white px-3 py-1.5 rounded-full border border-primary/25 hover:bg-primary hover:text-white">비교 보기 →</button>
     </div>
 

@@ -62,6 +62,6 @@ const gauges = computed(() => [
         <p class="text-sm text-foreground/80">{{ n.police }}</p>
       </div>
     </div>
-    <NeighborhoodMap :dong="n.id" :hash="hash" mode="safety" />
+    <NeighborhoodMap :dong="n.dongName" :admin-dong-id="n.id" :hash="hash" mode="safety" />
   </div>
 </template>
