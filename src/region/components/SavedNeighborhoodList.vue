@@ -65,7 +65,7 @@ const items = computed(() =>
           <div class="grid grid-cols-3 gap-2 mb-4 mt-3">
             <div
               v-for="s in [
-                { label: '안전', val: item.data.distData.safetyScore },
+                { label: '치안', val: item.data.distData.safetyScore },
                 { label: '교통', val: item.data.distData.transitScore },
                 { label: '인프라', val: item.data.distData.infraScore },
               ]"

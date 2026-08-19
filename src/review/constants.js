@@ -28,37 +28,32 @@ export const CATEGORY_LABEL_TO_CODE = Object.fromEntries(
  * - [2026, 8, 1]
  * - Date 객체
  */
-function formatCreatedAt(createdAt) {
-  if (!createdAt) {
-    return "";
+function formatCalendarDate(year, month, day) {
+  if (
+    !Number.isInteger(year) ||
+    !Number.isInteger(month) ||
+    !Number.isInteger(day) ||
+    month < 1 ||
+    month > 12 ||
+    day < 1 ||
+    day > 31
+  ) {
+    return ''
   }
 
-  if (typeof createdAt === "string") {
-    return createdAt.slice(0, 10).replaceAll("-", ".");
+  const date = new Date(0)
+  date.setHours(0, 0, 0, 0)
+  date.setFullYear(year, month - 1, day)
+
+  if (
+    date.getFullYear() !== year ||
+    date.getMonth() + 1 !== month ||
+    date.getDate() !== day
+  ) {
+    return ''
   }
 
-  if (Array.isArray(createdAt)) {
-    const [year, month, day] = createdAt;
-
-    if (!year || !month || !day) {
-      return "";
-    }
-
-    return `${year}.${String(month).padStart(2, "0")}.${String(day).padStart(
-      2,
-      "0",
-    )}`;
-  }
-
-  if (createdAt instanceof Date) {
-    if (Number.isNaN(createdAt.getTime())) {
-      return "";
-    }
-
-    return createdAt.toISOString().slice(0, 10).replaceAll("-", ".");
-  }
-
-  return "";
+  return `${year}.${String(month).padStart(2, '0')}.${String(day).padStart(2, '0')}`
 }
 
 /*
@@ -107,7 +102,7 @@ export function mapReviewResponse(apiReview = {}) {
     author: isAnonymous
       ? "익명"
       : apiReview.writerNickname || apiReview.nickname || "익명",
-    date: formatCreatedAt(apiReview.createdAt),
+    date: formatCalendarDate(apiReview.createdAt),
     overallRating: apiReview.overallRating,
     content: apiReview.content || "",
     anonymous: isAnonymous,
