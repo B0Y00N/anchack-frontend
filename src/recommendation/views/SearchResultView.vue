@@ -23,7 +23,7 @@ const nbhd = useNeighborhoodStore()
 const mypage = useMyPageStore()
 
 // 실제 API 응답을 카드가 쓰는 모양으로 다듬는다.
-// guName/dongName은 API_USER_CONDITIONS_REVISION_REQUEST.md의 P0 반영으로 추가된 필드.
+// guName/dongName/lat/lng는 API_USER_CONDITIONS_REVISION_REQUEST.md의 P0 반영으로 추가된 필드.
 // 상세보기/비교용 정보(P1)는 아직 없어 상세 화면은 계속 토스트로 막아둔다.
 const neighborhoods = computed(() =>
   recommendation.recommendations.map((r) => ({
@@ -37,6 +37,16 @@ const neighborhoods = computed(() =>
     transferCount: r.transferCount,
     reasons: r.recommendationReason ? r.recommendationReason.split(',').map((s) => s.trim()) : [],
     cautions: r.caution ? r.caution.split(',').map((s) => s.trim()) : [],
+  })),
+)
+
+// ResultMap이 핀을 찍는 데 쓰는 모양(id/lat/lng)으로 변환.
+// id는 지도 뱃지 표시 및 geojson 행정동 경계 매칭에 dongName을 그대로 사용한다(ResultMap.vue 참고).
+const mapRecommendations = computed(() =>
+  recommendation.recommendations.map((r) => ({
+    id: r.dongName,
+    lat: Number(r.lat),
+    lng: Number(r.lng),
   })),
 )
 
@@ -99,7 +109,7 @@ function goListings() {
   </transition>
 
   <transition name="view-fade" mode="out-in">
-    <div v-if="mode === 'results'" key="results" class="flex h-screen pt-[60px] overflow-hidden">
+    <div v-if="mode === 'results'" key="results" class="flex h-screen pt-15 overflow-hidden">
       <RecommendList
         :neighborhoods="neighborhoods"
         :compare-list="nbhd.compareList"
@@ -116,7 +126,12 @@ function goListings() {
         <div
           class="w-full h-full rounded-2xl overflow-hidden border border-border shadow-sm flex flex-col"
         >
-          <ResultMap v-model="search.appState.selectedDistricts" :max="2" />
+          <ResultMap
+            v-model="search.appState.selectedDistricts"
+            :max="2"
+            :recommendations="mapRecommendations"
+            :highlighted="mapRecommendations[0]?.id"
+          />
         </div>
       </div>
     </div>
