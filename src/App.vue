@@ -1,19 +1,5 @@
 <script setup>
-import { onMounted } from 'vue'
-
 import TheHeader from './common/components/TheHeader.vue'
-import { useAuthStore } from '@/user/stores/useAuthStore'
-
-const authStore = useAuthStore()
-
-// 새로고침 또는 앱 재접속 시 로그인 사용자 정보 복구
-onMounted(async () => {
-  try {
-    await authStore.loadUser()
-  } catch (error) {
-    console.error('로그인 사용자 정보를 불러오지 못했습니다.', error)
-  }
-})
 </script>
 
 <template>
