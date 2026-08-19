@@ -19,3 +19,20 @@ export const getAdminDong = (guName, dongName) =>
       dongName,
     },
   });
+
+/*
+ * 행정동 상세 정보(월세 시세, 치안, 생활 인프라 개수 등)를 id 배열로 한 번에 조회한다.
+ * 추천 결과(최대 5개)를 한 번의 배치 호출로 채우는 용도 (P1-b, API_USER_CONDITIONS_REVISION_REQUEST.md 참고)
+ */
+export const getAdminDongsBatch = (ids) =>
+  api.get("/admin-dongs/batch", {
+    params: { ids: ids.join(",") },
+  });
+
+/*
+ * 행정동 안의 실제 장소(places 테이블) 좌표를 조회한다. categories를 생략하면 전체
+ * 카테고리를 반환한다 (P2, API_USER_CONDITIONS_REVISION_REQUEST.md 참고).
+ * NeighborhoodMap.vue가 상세 탭(통근/치안/생활 인프라) 지도 마커를 그리는 데 쓴다.
+ */
+export const getAdminDongPlaces = (adminDongId) =>
+  api.get(`/admin-dongs/${adminDongId}/places`);

@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import RecommendList from '../components/sidebar/RecommendList.vue'
 import SaveConditionModal from '../components/sidebar/SaveConditionModal.vue'
@@ -9,7 +9,6 @@ import CompareTable from '../components/main/CompareTable.vue'
 import ListingsPanel from '../components/main/ListingsPanel.vue'
 import DetailPanel from '../components/detail/DetailPanel.vue'
 import BaseToast from '../../common/components/BaseToast.vue'
-import { NEIGHBORHOODS } from '@/common/utils/mockData.js'
 import { useSearchStore } from '@/condition/stores/useSearchStore.js'
 import { useRecommendationStore } from '@/recommendation/stores/useRecommendationStore.js'
 import { useNeighborhoodStore } from '@/region/stores/useNeighborhoodStore.js'
@@ -22,9 +21,20 @@ const recommendation = useRecommendationStore()
 const nbhd = useNeighborhoodStore()
 const mypage = useMyPageStore()
 
-// 실제 API 응답을 카드가 쓰는 모양으로 다듬는다.
-// guName/dongName/lat/lng는 API_USER_CONDITIONS_REVISION_REQUEST.md의 P0 반영으로 추가된 필드.
-// 상세보기/비교용 정보(P1)는 아직 없어 상세 화면은 계속 토스트로 막아둔다.
+// 새로고침으로 sessionStorage에서 recommendations를 복구했는데, 그 순간 detailsById가
+// 비어 있는 채였다면(예: 원래 세션에서 fetchDetails가 끝나기 전에 새로고침됨) 아무도
+// 다시 요청해주지 않아 상세 화면이 로딩 상태로 멈춘다. 진입 시 한 번 확인해서 이어준다.
+onMounted(() => {
+  if (recommendation.recommendations.length > 0 && recommendation.detailsStatus === 'idle') {
+    recommendation.fetchDetails()
+  }
+})
+
+// 실제 API 응답을 카드/상세 화면이 쓰는 모양으로 다듬는다.
+// guName/dongName/lat/lng는 P0, deposit/monthly/rentDist/cctv/police/crimeRate/safetyScore/
+// gyms/convenience/hospitals/parks/department/mart는 P1-b(admin-dongs/batch)에서 채워진다.
+// route/lineColor/lineNum/walkMin/subwayMin/transferMin(P1-a)은 아직 백엔드 협의 중이라
+// 이 값들을 쓰는 TabCommute.vue가 undefined를 안전하게 처리한다.
 const neighborhoods = computed(() =>
   recommendation.recommendations.map((r) => ({
     id: r.adminDongId,
@@ -35,8 +45,9 @@ const neighborhoods = computed(() =>
     dataCoverageRate: r.dataCoverageRate,
     commuteTime: r.commuteTime,
     transferCount: r.transferCount,
-    reasons: r.recommendationReason ? r.recommendationReason.split(',').map((s) => s.trim()) : [],
-    cautions: r.caution ? r.caution.split(',').map((s) => s.trim()) : [],
+    pros: r.recommendationReason ? r.recommendationReason.split(',').map((s) => s.trim()) : [],
+    cons: r.caution ? r.caution.split(',').map((s) => s.trim()) : [],
+    ...recommendation.detailsById[r.adminDongId],
   })),
 )
 
@@ -62,15 +73,17 @@ const showSavedListModal = ref(false)
 const conditionSaved = ref(false)
 const toast = ref(null)
 
-const selectedNeighborhood = computed(() => NEIGHBORHOODS.find((n) => n.id === route.params.id))
+const selectedId = computed(() => (route.params.id != null ? Number(route.params.id) : null))
+const selectedNeighborhood = computed(() => neighborhoods.value.find((n) => n.id === selectedId.value))
+// admin-dongs/batch는 추천 성공 직후 한 번에 조회되지만, 그 응답이 오기 전에 사용자가
+// 카드를 눌러 상세로 들어올 수 있어 이 id의 상세 정보가 아직 왔는지 별도로 확인한다.
+const detailReady = computed(() => selectedId.value != null && recommendation.detailsById[selectedId.value] != null)
 
-// 행정동 상세 정보(이름/구/좌표 등)를 백엔드가 아직 제공하지 않아
-// 상세 보기/비교 화면은 빈 화면이 되므로, 대신 안내 토스트만 띄운다.
-function goDetail() {
-  toast.value = '동네 상세 정보는 곧 제공될 예정이에요.'
+function goDetail(id) {
+  router.push(`/search/results/${id}`)
 }
-function toggleCompare() {
-  toast.value = '동네 비교 기능은 곧 제공될 예정이에요.'
+function toggleCompare(id) {
+  nbhd.toggleCompare(id)
 }
 function toggleSaveWithToast(id) {
   const wasAdded = !mypage.savedNeighborhoods.includes(id)
@@ -118,7 +131,7 @@ function goListings() {
         @detail="goDetail"
         @compare="toggleCompare"
         @toggle-save="toggleSaveWithToast"
-        @go-compare="toggleCompare"
+        @go-compare="router.push('/search/compare')"
         @save-condition-click="showSaveModal = true"
         @show-saved-list="showSavedListModal = true"
       />
@@ -137,20 +150,50 @@ function goListings() {
     </div>
 
     <DetailPanel
-      v-else-if="mode === 'detail' && selectedNeighborhood"
+      v-else-if="mode === 'detail' && selectedNeighborhood && detailReady"
       key="detail"
       :n="selectedNeighborhood"
-      :is-saved="mypage.savedNeighborhoods.includes(route.params.id)"
-      :in-compare="nbhd.compareList.includes(route.params.id)"
+      :is-saved="mypage.savedNeighborhoods.includes(selectedId)"
+      :in-compare="nbhd.compareList.includes(selectedId)"
       @back="router.push('/search/results')"
       @listings="goListings"
-      @toggle-save="toggleSaveWithToast(route.params.id)"
-      @compare="toggleCompare(route.params.id)"
+      @toggle-save="toggleSaveWithToast(selectedId)"
+      @compare="toggleCompare(selectedId)"
     />
+
+    <div
+      v-else-if="mode === 'detail' && selectedNeighborhood && !detailReady"
+      key="detail-loading"
+      class="min-h-screen bg-background pt-[60px] flex items-center justify-center"
+    >
+      <p v-if="recommendation.detailsStatus === 'error'" class="text-sm text-muted-foreground">
+        상세 정보를 불러오지 못했어요.
+        <button @click="recommendation.fetchDetails()" class="text-primary font-semibold underline">다시 시도</button>
+      </p>
+      <p v-else class="text-sm text-muted-foreground">상세 정보를 불러오는 중이에요...</p>
+    </div>
+
+    <div
+      v-else-if="mode === 'detail' && !selectedNeighborhood"
+      key="detail-not-found"
+      class="min-h-screen bg-background pt-[60px] flex flex-col items-center justify-center gap-3 text-center px-6"
+    >
+      <p class="text-sm font-semibold text-foreground">동네 정보를 찾을 수 없어요</p>
+      <p class="text-xs text-muted-foreground">
+        잘못된 주소이거나 검색 세션이 만료됐을 수 있어요.
+      </p>
+      <button
+        @click="router.push('/search/results')"
+        class="text-sm font-semibold text-primary border border-primary/25 rounded-full px-4 py-2 hover:bg-secondary"
+      >
+        추천 결과로 돌아가기
+      </button>
+    </div>
 
     <CompareTable
       v-else-if="mode === 'compare'"
       key="compare"
+      :neighborhoods="neighborhoods"
       :compare-list="nbhd.compareList"
       @back="router.push('/search/results')"
     />

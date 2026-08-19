@@ -42,14 +42,14 @@ const emit = defineEmits(['detail', 'compare', 'toggle-save'])
     </div>
     <div class="text-xs space-y-1.5 mb-4">
       <p
-        v-for="(reason, i) in n.reasons.slice(0, 2)"
+        v-for="(reason, i) in n.pros.slice(0, 2)"
         :key="i"
         class="text-foreground/75 flex items-start gap-1.5"
       >
         <Check :size="11" class="text-primary mt-0.5 flex-shrink-0" /> {{ reason }}
       </p>
-      <p v-if="n.cautions[0]" class="text-amber-700 flex items-start gap-1.5">
-        <span class="flex-shrink-0">⚠</span> {{ n.cautions[0] }}
+      <p v-if="n.cons[0]" class="text-amber-700 flex items-start gap-1.5">
+        <span class="flex-shrink-0">⚠</span> {{ n.cons[0] }}
       </p>
     </div>
     <div class="flex gap-2" @click.stop>

@@ -933,31 +933,6 @@ export const LANDMARKS = [
   { district: '강동구', name: '암사', x: 528, y: 278 },
 ]
 
-export const MAP_MARKER_SETS = {
-  infra: [
-    { label: '편의점', color: '#52B37A', emoji: '🏪', baseCount: 3 },
-    { label: '카페/음식점', color: '#C47C3A', emoji: '☕', baseCount: 4 },
-    { label: '병원/약국', color: '#E05555', emoji: '🏥', baseCount: 2 },
-    { label: '헬스장', color: '#2D7A4F', emoji: '🏋️', baseCount: 1 },
-    { label: '은행', color: '#7B68A6', emoji: '🏦', baseCount: 1 },
-    { label: '공원', color: '#4A9E6B', emoji: '🌳', baseCount: 1 },
-    { label: '백화점', color: '#B03A8C', emoji: '🏬', baseCount: 1 },
-    { label: '대형마트', color: '#D97706', emoji: '🛒', baseCount: 1 },
-  ],
-  safety: [
-    { label: 'CCTV', color: '#546E7A', emoji: '📷', baseCount: 5 },
-    { label: '가로등', color: '#F59E0B', emoji: '💡', baseCount: 4 },
-    { label: '경찰서/지구대', color: '#1565C0', emoji: '🚔', baseCount: 1 },
-    { label: '안전비상벨', color: '#E53935', emoji: '🚨', baseCount: 2 },
-  ],
-  transit: [
-    { label: '지하철역', color: '#1976D2', emoji: '🚇', baseCount: 1 },
-    { label: '버스정류장', color: '#E64A19', emoji: '🚌', baseCount: 4 },
-    { label: '따릉이', color: '#43A047', emoji: '🚲', baseCount: 2 },
-    { label: '택시승강장', color: '#F9A825', emoji: '🚕', baseCount: 1 },
-  ],
-}
-
 export const PRIORITY_OPTIONS = [
   '교통',
   '치안',

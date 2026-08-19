@@ -1,28 +1,31 @@
 <script setup>
 import { computed } from "vue";
 import { ChevronLeft, ShoppingCart } from "lucide-vue-next";
-import { NEIGHBORHOODS } from "../../../common/utils/mockData";
 import TheFooter from "../../../common/components/TheFooter.vue";
 
-const props = defineProps({ compareList: { type: Array, required: true } });
+const props = defineProps({
+  neighborhoods: { type: Array, required: true },
+  compareList: { type: Array, required: true },
+});
 const emit = defineEmits(["back"]);
 
-const ns = computed(() => NEIGHBORHOODS.filter((n) => props.compareList.includes(n.id)));
+const ns = computed(() => props.neighborhoods.filter((n) => props.compareList.includes(n.id)));
 
 const rows = [
   { label: "적합도", get: (n) => `${n.score}점`, compare: "higher", num: (n) => n.score },
-  { label: "통근시간", get: (n) => `${n.commuteTime}분`, compare: "lower", num: (n) => n.commuteTime },
-  { label: "월세 중위값", get: (n) => `${n.monthly}만원 · 약 20m²`, compare: "lower", num: (n) => n.monthly },
-  { label: "보증금", get: (n) => `${n.deposit.toLocaleString()}만원`, compare: "lower", num: (n) => n.deposit },
-  { label: "종합 안전 점수", get: (n) => `${n.safetyScore}점`, compare: "higher", num: (n) => n.safetyScore },
+  { label: "통근시간", get: (n) => (n.commuteTime != null ? `${n.commuteTime}분` : "정보 없음"), compare: "lower", num: (n) => n.commuteTime },
+  { label: "월세 중위값", get: (n) => (n.monthly != null ? `${n.monthly}만원` : "정보 없음"), compare: "lower", num: (n) => n.monthly },
+  { label: "보증금", get: (n) => (n.deposit != null ? `${n.deposit.toLocaleString()}만원` : "정보 없음"), compare: "lower", num: (n) => n.deposit },
+  { label: "종합 안전 점수", get: (n) => (n.safetyScore != null ? `${n.safetyScore}점` : "정보 없음"), compare: "higher", num: (n) => n.safetyScore },
   { label: "주요 장점", get: (n) => n.pros[0] },
   { label: "아쉬운 점", get: (n) => n.cons[0] },
 ];
 
 function isBest(row, n) {
   if (!row.compare || !row.num) return false;
-  const vals = ns.value.map(row.num);
   const val = row.num(n);
+  if (val == null) return false;
+  const vals = ns.value.map(row.num).filter((v) => v != null);
   return row.compare === "higher" ? val === Math.max(...vals) : val === Math.min(...vals);
 }
 function cellTone(row, n) {
@@ -58,7 +61,7 @@ function cellTone(row, n) {
             <tr class="border-b border-border bg-muted/40">
               <th class="px-6 py-5 text-left text-sm font-semibold text-muted-foreground w-[200px]">비교 항목</th>
               <th v-for="n in ns" :key="n.id" class="px-6 py-5 text-center">
-                <div class="font-bold text-foreground">{{ n.id }}</div>
+                <div class="font-bold text-foreground">{{ n.guName }} {{ n.dongName }}</div>
                 <div class="text-sm font-bold text-primary">적합도 {{ n.score }}점</div>
               </th>
             </tr>
