@@ -54,8 +54,9 @@ const neighborhoods = computed(() =>
     vehicleType: r.vehicleType,
     lineColor: resolveLineColor({ transportType: r.transportType, lineNum: r.lineNum, vehicleType: r.vehicleType }),
     walkMin: r.walkMin,
-    subwayMin: r.subwayMin,
-    transferMin: r.transferMin,
+    // subwayMin -> transitMin으로 필드명 변경(값은 그대로: 버스+지하철 탑승 시간 합산).
+    // 대기·환승 시간은 별도 필드로 안 내려와서 TabCommute.vue가 commuteTime에서 역산한다.
+    transitMin: r.transitMin,
     pros: r.recommendationReason ? r.recommendationReason.split(',').map((s) => s.trim()) : [],
     cons: r.caution ? r.caution.split(',').map((s) => s.trim()) : [],
     ...recommendation.detailsById[r.adminDongId],

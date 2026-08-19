@@ -11,8 +11,19 @@ const props = defineProps({
 
 const isBus = computed(() => props.n.transportType === 'BUS')
 
+// 대기·환승 시간은 별도 필드로 안 내려온다. commuteTime에서 도보/탑승 시간을 뺀
+// 나머지로 역산한다(walkMin/transitMin이 null이면 0으로 취급). 단, 둘 다 null이면
+// "전체가 대기시간"이라는 잘못된 값이 나오므로 그 경우엔 계산하지 않는다.
+const waitMin = computed(() => {
+  const { commuteTime, walkMin, transitMin } = props.n
+  if (commuteTime == null) return null
+  if (walkMin == null && transitMin == null) return null
+  const remaining = commuteTime - (walkMin ?? 0) - (transitMin ?? 0)
+  return remaining > 0 ? remaining : null
+})
+
 // 카카오 경로 응답이 step을 안 쪼개는 구간(환승 없는 단거리 등)이 있어
-// walkMin/subwayMin/transferMin은 각각 null일 수 있다. null인 구간은 도넛에서 빼고,
+// walkMin/transitMin은 각각 null일 수 있다. null인 구간은 도넛에서 빼고,
 // 하나도 안 남으면(전부 null) 도넛 자체를 렌더링하지 않는다(구간 합이 commuteTime과
 // 안 맞는 반쪽짜리 도넛을 보여주는 대신, 아래에서 안내 문구로 대체).
 const segments = computed(() =>
@@ -21,10 +32,10 @@ const segments = computed(() =>
     {
       label: isBus.value ? '버스' : '지하철',
       icon: isBus.value ? Bus : Train,
-      min: props.n.subwayMin,
+      min: props.n.transitMin,
       color: props.n.lineColor,
     },
-    { label: '환승 대기', icon: Clock, min: props.n.transferMin, color: '#C5D5CE' },
+    { label: '대기·환승', icon: Clock, min: waitMin.value, color: '#C5D5CE' },
   ].filter((s) => s.min != null),
 )
 
