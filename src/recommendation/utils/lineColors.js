@@ -3,7 +3,7 @@
  * (API_USER_CONDITIONS_REVISION_REQUEST.md P1-a 참고) 프론트가 직접 관리한다.
  *
  * 지하철은 lineNum(백엔드가 카카오 vehicles[0].name을 그대로 전달, 예: "6호선")으로,
- * 버스는 노선 번호가 아니라 vehicleType(카카오 vehicles[0].type: 간선/지선/순환/광역/마을)으로
+ * 버스는 노선 번호가 아니라 vehicleType(카카오 vehicles[0].type: 간선/지선/순환/광역/직행/마을)으로
  * 매핑한다 — 버스는 노선 수가 너무 많아 번호별로는 매핑할 수 없다.
  */
 
@@ -34,6 +34,7 @@ const BUS_TYPE_COLORS = {
   지선: "#53B332",
   순환: "#F2B70A",
   광역: "#E60012",
+  직행: "#E60012", // 직행좌석버스: 광역버스와 같은 계열(빨강)로 취급
   마을: "#53B332",
 };
 const BUS_FALLBACK_COLOR = "#6789CA";
