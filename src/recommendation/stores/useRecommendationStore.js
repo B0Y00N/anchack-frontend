@@ -77,14 +77,21 @@ export const useRecommendationStore = defineStore("recommendation", {
       const ids = this.recommendations.map((r) => r.adminDongId);
       if (ids.length === 0) return;
 
+      // 이 조회가 시작된 시점의 조건을 기억해뒀다가, 응답이 왔을 때도 여전히 같은
+      // 검색 결과를 보고 있는지 확인한다. 조회 도중 사용자가 새 조건으로 다시
+      // 검색해버리면(conditionId가 바뀜) 늦게 온 이전 응답을 버려서 최신 상태를
+      // 덮어쓰지 않게 한다.
+      const requestedConditionId = this.conditionId;
       this.detailsStatus = "loading";
 
       try {
         const res = await getAdminDongsBatch(ids);
+        if (this.conditionId !== requestedConditionId) return;
         this.detailsById = Object.fromEntries(res.data.data.map((d) => [d.adminDongId, d]));
         this.detailsStatus = "success";
         persist(this);
       } catch (error) {
+        if (this.conditionId !== requestedConditionId) return;
         this.detailsStatus = "error";
       }
     },
