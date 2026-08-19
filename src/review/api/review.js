@@ -18,5 +18,9 @@ export const createReview = (payload) => api.post("/reviews", payload);
 export const updateReview = (id, payload) => api.put(`/reviews/${id}`, payload);
 export const deleteReview = (id) => api.delete(`/reviews/${id}`);
 
+// 리뷰 좋아요/싫어요 기능은 현재 비활성화되어 있다.
+// export const reactToReview = (reviewId, reactionType) =>
+//   api.post(`/reviews/${reviewId}/reactions`, { reactionType });
+
 // 리뷰 신고
 export const reportReview = (reviewId, reason) => api.post(`/reviews/${reviewId}/reports`, { reason });

@@ -12,7 +12,6 @@ import BaseToast from '@/common/components/BaseToast.vue'
 import TheFooter from '@/common/components/TheFooter.vue'
 import { DONG_DATA } from '@/common/utils/mockData'
 import { useNeighborhoodStore } from '@/region/stores/useNeighborhoodStore'
-import { useMyPageStore } from '@/mypage/stores/useMyPageStore'
 import { useDongStats } from '@/region/composables/useDongStats'
 import { getAdminDong } from '@/region/api/neighborhood.js'
 import { getReviews } from '@/review/api/review.js'
@@ -21,7 +20,6 @@ import { mapReviewResponse } from '@/review/constants.js'
 const route = useRoute()
 const router = useRouter()
 const nbhd = useNeighborhoodStore()
-const mypage = useMyPageStore()
 
 const selectedDistrict = computed({
   get: () => route.params.district || null,
@@ -40,27 +38,6 @@ const dongList = computed(() => {
   if (!selectedDistrict.value) return []
   return geojsonDongMap.value[selectedDistrict.value] ?? districtData.value?.dong ?? []
 })
-// ⚠️ 아래 구/동 목록 사이드바의 평점 미리보기는 아직 목(mock) 데이터를 사용한다.
-// 특정 동을 선택했을 때의 실제 리뷰 작성/조회/수정/삭제는 모두 실제 DB API로 동작한다(하단 참고).
-const districtReviews = computed(() =>
-  selectedDistrict.value
-    ? mypage.allReviews.filter((r) => r.district === selectedDistrict.value)
-    : [],
-)
-const districtAvgRating = computed(() =>
-  districtReviews.value.length > 0
-    ? districtReviews.value.reduce((s, r) => s + r.overallRating, 0) / districtReviews.value.length
-    : 0,
-)
-
-function dongReviews(dong) {
-  return mypage.allReviews.filter((r) => r.district === selectedDistrict.value && r.dong === dong)
-}
-function dongAvg(dong) {
-  const rs = dongReviews(dong)
-  return rs.length > 0 ? rs.reduce((s, r) => s + r.overallRating, 0) / rs.length : 0
-}
-
 function selectDong(dong) {
   router.push(`/explore/${selectedDistrict.value}/${dong}`)
 }
@@ -550,9 +527,10 @@ function initMap() {
             class="flex items-center gap-3 bg-card border border-border rounded-xl px-4 py-3"
           >
             <Check :size="14" class="text-primary shrink-0" /><span
-              class="text-sm text-foreground"
-              >{{ item }}</span
-            >
+            class="text-sm text-foreground"
+          >{{ item }}</span
+          >
+
           </div>
         </div>
       </div>
@@ -568,17 +546,12 @@ function initMap() {
           <div class="flex items-start justify-between">
             <div>
               <h2 class="text-2xl font-bold text-foreground">{{ selectedDistrict }}</h2>
-              <div v-if="districtAvgRating > 0" class="flex items-center gap-2 mt-1">
-                <StarDisplay :rating="districtAvgRating" :size="13" />
-                <span class="text-xs text-muted-foreground"
-                  >{{ districtAvgRating.toFixed(1) }} ({{ districtReviews.length }}개 리뷰)</span
-                >
-              </div>
             </div>
             <span
               v-if="districtData"
               class="text-xs bg-secondary text-primary font-semibold px-3 py-1 rounded-full"
-              >평균 월세 {{ districtData.avgRent }}만원</span
+            >평균 월세 {{ districtData.avgRent }}만원</span
+
             >
           </div>
         </div>
@@ -588,7 +561,7 @@ function initMap() {
             <div class="grid grid-cols-3 gap-2">
               <div
                 v-for="item in [
-                  { label: '안전', val: districtData.safetyScore, color: '#4A90D9' },
+                  { label: '치안', val: districtData.safetyScore, color: '#4A90D9' },
                   { label: '교통', val: districtData.transitScore, color: '#E07040' },
                   { label: '인프라', val: districtData.infraScore, color: '#52B37A' },
                 ]"
@@ -625,15 +598,6 @@ function initMap() {
                       class="text-sm font-semibold text-foreground group-hover:text-primary transition-colors"
                     >
                       {{ dong }}
-                    </div>
-                    <div class="flex items-center gap-2 mt-0.5">
-                      <template v-if="dongAvg(dong) > 0">
-                        <StarDisplay :rating="dongAvg(dong)" :size="10" />
-                        <span class="text-xs text-muted-foreground"
-                          >{{ dongAvg(dong).toFixed(1) }} · {{ dongReviews(dong).length }}개</span
-                        >
-                      </template>
-                      <span v-else class="text-xs text-muted-foreground">리뷰 없음</span>
                     </div>
                   </div>
                   <ChevronRight
