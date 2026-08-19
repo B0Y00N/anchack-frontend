@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import RecommendList from '../components/sidebar/RecommendList.vue'
 import SaveConditionModal from '../components/sidebar/SaveConditionModal.vue'
@@ -20,6 +20,15 @@ const search = useSearchStore()
 const recommendation = useRecommendationStore()
 const nbhd = useNeighborhoodStore()
 const mypage = useMyPageStore()
+
+// 새로고침으로 sessionStorage에서 recommendations를 복구했는데, 그 순간 detailsById가
+// 비어 있는 채였다면(예: 원래 세션에서 fetchDetails가 끝나기 전에 새로고침됨) 아무도
+// 다시 요청해주지 않아 상세 화면이 로딩 상태로 멈춘다. 진입 시 한 번 확인해서 이어준다.
+onMounted(() => {
+  if (recommendation.recommendations.length > 0 && recommendation.detailsStatus === 'idle') {
+    recommendation.fetchDetails()
+  }
+})
 
 // 실제 API 응답을 카드/상세 화면이 쓰는 모양으로 다듬는다.
 // guName/dongName/lat/lng는 P0, deposit/monthly/rentDist/cctv/police/crimeRate/safetyScore/
@@ -162,6 +171,23 @@ function goListings() {
         <button @click="recommendation.fetchDetails()" class="text-primary font-semibold underline">다시 시도</button>
       </p>
       <p v-else class="text-sm text-muted-foreground">상세 정보를 불러오는 중이에요...</p>
+    </div>
+
+    <div
+      v-else-if="mode === 'detail' && !selectedNeighborhood"
+      key="detail-not-found"
+      class="min-h-screen bg-background pt-[60px] flex flex-col items-center justify-center gap-3 text-center px-6"
+    >
+      <p class="text-sm font-semibold text-foreground">동네 정보를 찾을 수 없어요</p>
+      <p class="text-xs text-muted-foreground">
+        잘못된 주소이거나 검색 세션이 만료됐을 수 있어요.
+      </p>
+      <button
+        @click="router.push('/search/results')"
+        class="text-sm font-semibold text-primary border border-primary/25 rounded-full px-4 py-2 hover:bg-secondary"
+      >
+        추천 결과로 돌아가기
+      </button>
     </div>
 
     <CompareTable
