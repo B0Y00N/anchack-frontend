@@ -8,12 +8,6 @@ const authStore = useAuthStore()
 
 // 새로고침 또는 앱 재접속 시 로그인 사용자 정보 복구
 onMounted(async () => {
-  const accessToken = localStorage.getItem('accessToken')
-
-  if (!accessToken) {
-    return
-  }
-
   try {
     await authStore.loadUser()
   } catch (error) {

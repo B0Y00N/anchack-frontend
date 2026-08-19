@@ -39,6 +39,12 @@ function goLogin() {
   router.replace("/login");
 }
 
+function getLoginRedirect() {
+  const redirect = sessionStorage.getItem("loginRedirect");
+  sessionStorage.removeItem("loginRedirect");
+  return redirect || "/";
+}
+
 onMounted(async () => {
   const code = route.query.code;
   const kakaoError = route.query.error;
@@ -121,8 +127,8 @@ onMounted(async () => {
       authStore.user,
     );
 
-    // 로그인 완료 후 홈으로 이동
-    await router.replace("/");
+    // 로그인 완료 후 접근하려던 페이지로 복귀
+    await router.replace(getLoginRedirect());
   } catch (error) {
     console.error(
       "카카오 로그인 실패:",
