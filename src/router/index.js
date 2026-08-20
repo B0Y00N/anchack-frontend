@@ -89,9 +89,9 @@ const routes = [
     meta: { requiresAuth: true },
   },
   {
-    path: '/mypage/favorites',
-    name: 'mypage-favorites',
-    component: () => import('../mypage/views/MyPageView.vue'),
+    path: '/favorites',
+    name: 'favorites',
+    component: () => import('../mypage/views/FavoriteNeighborhoodsView.vue'),
     meta: { requiresAuth: true },
   },
 

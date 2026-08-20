@@ -46,7 +46,7 @@ function logout() {
       <button @click="navigate('/mypage')" class="flex items-center gap-1.5 text-sm font-medium text-foreground/70 hover:text-primary transition-colors px-3 py-2 rounded-lg hover:bg-secondary">
         <User :size="15" /> 마이페이지
       </button>
-      <button @click="navigate('/mypage/favorites')" class="flex items-center gap-1.5 text-sm font-medium text-foreground/70 hover:text-primary transition-colors px-3 py-2 rounded-lg hover:bg-secondary">
+      <button @click="navigate('/favorites')" class="flex items-center gap-1.5 text-sm font-medium text-foreground/70 hover:text-primary transition-colors px-3 py-2 rounded-lg hover:bg-secondary">
         <svg width="15" height="15" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" class="flex-shrink-0">
           <path d="M8 2L2 7V14H6V10H10V14H14V7L8 2Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" fill="none" />
           <path d="M8 12.5C8 12.5 5.5 11 5.5 9.3C5.5 8.4 6.2 7.7 7 7.7C7.4 7.7 7.8 7.9 8 8.2C8.2 7.9 8.6 7.7 9 7.7C9.8 7.7 10.5 8.4 10.5 9.3C10.5 11 8 12.5 8 12.5Z" fill="currentColor" stroke="none" />

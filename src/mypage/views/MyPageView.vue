@@ -8,7 +8,6 @@ import { useMyPageStore } from "../stores/useMyPageStore";
 import TheFooter from "../../common/components/TheFooter.vue";
 import UserProfileSummary from "../../user/components/UserProfileSummary.vue";
 import MyPageTabs from "../components/MyPageTabs.vue";
-import SavedNeighborhoodList from "../../region/components/SavedNeighborhoodList.vue";
 import SavedConditionList from "../../condition/components/SavedConditionList.vue";
 import MyReviewList from "../../review/components/MyReviewList.vue";
 import ReviewEditModal from "../../review/components/ReviewEditModal.vue";
@@ -20,8 +19,8 @@ const mypage = useMyPageStore();
 
 const userProfile = computed(() => auth.user);
 
-// 기본 탭 : 관심 동네
-const tab = ref("neighborhoods");
+// 기본 탭 : 저장한 조건
+const tab = ref("conditions");
 
 const editingReview = ref(null);
 
@@ -30,11 +29,6 @@ const myReviews = computed(() => {
 });
 
 const tabs = computed(() => [
-  {
-    key: "neighborhoods",
-    label: "관심 동네",
-    count: mypage.savedNeighborhoods.length,
-  },
   {
     key: "conditions",
     label: "저장한 조건",
@@ -125,14 +119,8 @@ function deleteReview(id) {
     </div>
 
     <div class="max-w-4xl mx-auto px-8 py-8">
-      <SavedNeighborhoodList
-        v-if="tab === 'neighborhoods'"
-        :saved-neighborhoods="mypage.savedNeighborhoods"
-        @navigate="navigate"
-      />
-
       <SavedConditionList
-        v-else-if="tab === 'conditions'"
+        v-if="tab === 'conditions'"
         mode="conditions"
         :saved-conditions="mypage.savedConditions"
         @navigate="navigate"
