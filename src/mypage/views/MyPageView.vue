@@ -4,6 +4,7 @@ import { useRouter } from "vue-router";
 
 import { useAuthStore } from "../../user/stores/useAuthStore";
 import { useMyPageStore } from "../stores/useMyPageStore";
+import { getErrorMessage } from "../../common/api/axios.js";
 
 import TheFooter from "../../common/components/TheFooter.vue";
 import BaseToast from "../../common/components/BaseToast.vue";
@@ -110,7 +111,7 @@ async function deleteReview(id) {
   } catch (error) {
     console.error("리뷰 삭제 실패:", error.response?.data || error);
     pageToast.value =
-      error.response?.data?.message || "리뷰 삭제에 실패했습니다. 잠시 후 다시 시도해주세요.";
+      getErrorMessage(error, "리뷰 삭제에 실패했습니다. 잠시 후 다시 시도해주세요.");
   }
 }
 

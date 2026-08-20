@@ -2,6 +2,7 @@ import { defineStore } from "pinia";
 import { DEFAULT_SAVED_CONDITIONS } from "../../common/utils/mockData";
 import { getMyReviews, deleteReview as deleteReviewApi } from "../../review/api/review.js";
 import { mapReviewResponse } from "../../review/constants.js";
+import { getErrorMessage } from "../../common/api/axios.js";
 
 export const useMyPageStore = defineStore("mypage", {
   state: () => ({
@@ -45,7 +46,7 @@ export const useMyPageStore = defineStore("mypage", {
         this.myReviews = [];
         this.myReviewsStatus = "error";
         this.myReviewsError =
-          error.response?.data?.message || "내가 쓴 리뷰를 불러오지 못했어요. 잠시 후 다시 시도해주세요.";
+          getErrorMessage(error, "내가 쓴 리뷰를 불러오지 못했어요. 잠시 후 다시 시도해주세요.");
       }
     },
 

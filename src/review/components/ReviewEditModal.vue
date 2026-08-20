@@ -5,6 +5,7 @@ import StarInput from "../../common/components/StarInput.vue";
 import StarDisplay from "../../common/components/StarDisplay.vue";
 import { REVIEW_CATEGORIES, CATEGORY_LABEL_TO_CODE } from "../constants.js";
 import { updateReview } from "../api/review.js";
+import { getErrorMessage } from "../../common/api/axios.js";
 
 const props = defineProps({
   review: { type: Object, required: true },
@@ -88,7 +89,7 @@ async function save() {
     console.error("리뷰 수정 실패:", error.response?.data || error);
 
     const status = error.response?.status;
-    const responseMessage = error.response?.data?.message;
+    const responseMessage = getErrorMessage(error, "");
 
     if (status === 401) {
       submitError.value = "로그인이 만료되었습니다. 다시 로그인해주세요.";
