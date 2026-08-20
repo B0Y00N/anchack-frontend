@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import { AlertCircle, Check, BookOpen, RefreshCw, TrendingUp } from "lucide-vue-next";
 import NeighborhoodCard from "./NeighborhoodCard.vue";
 import { RELAXATION_HINTS } from "../../../common/utils/mockData";
@@ -47,6 +47,14 @@ function selectFilter(f) {
   if (f.disabled) return;
   activeFilter.value = f.key;
 }
+
+// 새 검색을 시작하면 detailsReady/hasCommuteTime이 다시 false가 되면서 지금 선택돼
+// 있던 필터가 비활성화될 수 있다(예: 치안순 보다가 재검색). 그대로 두면 아직 없는
+// 필드로 계속 정렬하면서 비활성 버튼이 선택된 것처럼 보이므로 추천순으로 되돌린다.
+watch(filters, (fs) => {
+  const active = fs.find((f) => f.key === activeFilter.value);
+  if (active?.disabled) activeFilter.value = "score";
+});
 
 // 필터 버튼 줄이 overflow-x-auto라 툴팁을 그 안에서 absolute로 띄우면 스크롤
 // 컨테이너의 페인트/쌓임 순서에 갇혀 아래 카드 목록에 가려진다. body로 순간이동시켜서
