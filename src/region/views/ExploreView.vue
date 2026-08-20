@@ -1,7 +1,7 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Check, ChevronLeft, ChevronRight, Map } from 'lucide-vue-next'
+import { Check, ChevronLeft, ChevronRight, Map, MessageSquare } from 'lucide-vue-next'
 import ExploreHeader from '@/region/components/ExploreHeader.vue'
 import ExploreTabs from '@/region/components/ExploreTabs.vue'
 import ReviewWriteModal from '@/review/components/ReviewWriteModal.vue'
@@ -12,6 +12,7 @@ import BaseToast from '@/common/components/BaseToast.vue'
 import TheFooter from '@/common/components/TheFooter.vue'
 import { DONG_DATA } from '@/common/utils/mockData'
 import { useNeighborhoodStore } from '@/region/stores/useNeighborhoodStore'
+import { useMyPageStore } from '@/mypage/stores/useMyPageStore'
 import { useDongStats } from '@/region/composables/useDongStats'
 import { getAdminDong } from '@/region/api/neighborhood.js'
 import { getReviews } from '@/review/api/review.js'
@@ -20,6 +21,14 @@ import { mapReviewResponse } from '@/review/constants.js'
 const route = useRoute()
 const router = useRouter()
 const nbhd = useNeighborhoodStore()
+/*
+ * [수정] 동 상세 화면의 "저장" 버튼(isDongSaved / toggleSaveDong)이 mypage store를
+ * 참조하고 있었는데 정작 이 파일에서 useMyPageStore를 import/호출하지 않아서
+ * mypage가 정의되지 않은 상태였다. 그 결과 동을 선택할 때마다
+ * "ReferenceError: mypage is not defined"가 발생해 리뷰 탭을 포함한 동 상세
+ * 화면 전체가 렌더링되지 않았다.
+ */
+const mypage = useMyPageStore()
 
 const selectedDistrict = computed({
   get: () => route.params.district || null,
@@ -41,6 +50,62 @@ const dongList = computed(() => {
 function selectDong(dong) {
   router.push(`/explore/${selectedDistrict.value}/${dong}`)
 }
+
+/*
+ * 구를 선택했을 때, 동 목록 각각에 실제 DB에 저장된 리뷰 개수를 매핑해 보여준다.
+ * { 동이름: 리뷰개수 } 형태로 저장하며, 같은 구/동 조합은 dongReviewCountCache에
+ * 캐시해 두 번 조회하지 않는다.
+ */
+const dongReviewCounts = ref({})
+const dongReviewCountsLoading = ref(false)
+const dongReviewCountCache = {}
+
+async function loadDongReviewCounts(district, dongs) {
+  if (!district || !dongs || dongs.length === 0) {
+    dongReviewCounts.value = {}
+    return
+  }
+
+  dongReviewCountsLoading.value = true
+
+  const results = await Promise.all(
+    dongs.map(async (dongName) => {
+      const cacheKey = `${district}:${dongName}`
+
+      if (cacheKey in dongReviewCountCache) {
+        return [dongName, dongReviewCountCache[cacheKey]]
+      }
+
+      try {
+        // 구 이름 + 동 이름을 실제 admin_dong_id로 변환한 뒤, 해당 동의 리뷰 개수를 조회한다.
+        const adminDongRes = await getAdminDong(district, dongName)
+        const reviewsRes = await getReviews(adminDongRes.data.adminDongId)
+        const count = reviewsRes.data.length
+
+        dongReviewCountCache[cacheKey] = count
+        return [dongName, count]
+      } catch (error) {
+        console.error(`${district} ${dongName} 리뷰 개수 조회 실패:`, error.response?.data || error)
+        return [dongName, 0]
+      }
+    }),
+  )
+
+  // 응답을 기다리는 사이에 사용자가 다른 구를 선택했다면, 늦게 도착한 이전 구
+  // 결과로 최신 화면을 덮어쓰지 않는다.
+  if (selectedDistrict.value !== district) return
+
+  dongReviewCounts.value = Object.fromEntries(results)
+  dongReviewCountsLoading.value = false
+}
+
+watch(
+  [selectedDistrict, dongList],
+  ([district, dongs]) => {
+    loadDongReviewCounts(district, dongs)
+  },
+  { immediate: true },
+)
 
 // ── 동 상세 화면 ──
 const showReviewForm = ref(false)
@@ -598,6 +663,12 @@ function initMap() {
                       class="text-sm font-semibold text-foreground group-hover:text-primary transition-colors"
                     >
                       {{ dong }}
+                    </div>
+                    <div
+                      v-if="dongReviewCounts[dong] > 0"
+                      class="flex items-center gap-1 mt-1 text-xs text-muted-foreground"
+                    >
+                      <MessageSquare :size="11" /> 리뷰 {{ dongReviewCounts[dong] }}개
                     </div>
                   </div>
                   <ChevronRight

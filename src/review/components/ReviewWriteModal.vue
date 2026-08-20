@@ -158,24 +158,23 @@ const handleSubmit = async () => {
 
 <template>
   <Teleport to="body">
-    <!-- 화면 전체 모달 영역 -->
+    <!--
+      [수정] 기존에는 화면 왼쪽에 붙는 전체 높이 슬라이드 패널(absolute inset-y-0 left-0)
+      형태였는데, 앱의 다른 모든 모달(AddressSearchModal, SaveConditionModal,
+      ReviewEditModal 등)은 화면 정중앙에 뜨는 카드 형태를 쓰고 있어서 리뷰 작성
+      모달만 화면 왼쪽 구석에 붙어 보이는 문제가 있었다. 다른 모달과 동일하게
+      "fixed inset-0 + flex items-center justify-center"로 정중앙에 뜨도록 통일한다.
+    -->
     <div
-      class="fixed inset-0 z-[9999]"
+      class="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
       role="dialog"
       aria-modal="true"
       aria-labelledby="review-modal-title"
+      @click="emit('close')"
     >
-      <!-- 배경 오버레이 -->
-      <button
-        type="button"
-        class="absolute inset-0 h-full w-full cursor-default bg-black/40"
-        aria-label="리뷰 작성 창 닫기"
-        @click="emit('close')"
-      />
-
       <!-- 리뷰 작성 패널 -->
       <section
-        class="absolute inset-y-0 left-0 flex w-full max-w-[574px] flex-col overflow-hidden bg-background shadow-2xl"
+        class="flex w-full max-w-[574px] max-h-[85vh] flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-2xl"
         @click.stop
       >
         <!-- 헤더 -->
