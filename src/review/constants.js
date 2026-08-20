@@ -57,6 +57,39 @@ function formatCalendarDate(year, month, day) {
 }
 
 /*
+ * createdAt 값(다양한 형식)을 formatCalendarDate(year, month, day)가 요구하는
+ * 형태로 변환한 뒤 화면 표시용 문자열을 반환한다.
+ *
+ * [수정] 기존에는 formatCalendarDate(apiReview.createdAt)처럼 문자열/Date 값
+ * 하나를 그대로 넘기고 있었는데, formatCalendarDate는 (year, month, day) 세 개의
+ * 숫자 인자를 받는 함수라 year만 문자열로 들어가고 month/day는 undefined가 되어
+ * 항상 빈 문자열(날짜 표시 안 됨)을 반환하는 문제가 있었다.
+ */
+function parseCreatedAt(createdAt) {
+  if (!createdAt) return '';
+
+  if (createdAt instanceof Date) {
+    return formatCalendarDate(createdAt.getFullYear(), createdAt.getMonth() + 1, createdAt.getDate());
+  }
+
+  if (Array.isArray(createdAt)) {
+    const [year, month, day] = createdAt;
+    return formatCalendarDate(year, month, day);
+  }
+
+  if (typeof createdAt === 'string') {
+    // "2026-08-01T12:00:00" 또는 "2026-08-01" 형식 모두 지원
+    const match = createdAt.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (!match) return '';
+
+    const [, year, month, day] = match;
+    return formatCalendarDate(Number(year), Number(month), Number(day));
+  }
+
+  return '';
+}
+
+/*
  * 백엔드 ReviewResponse를 화면에서 사용하는 형태로 변환한다.
  *
  * 실제 API 응답 예시:
@@ -102,7 +135,7 @@ export function mapReviewResponse(apiReview = {}) {
     author: isAnonymous
       ? "익명"
       : apiReview.writerNickname || apiReview.nickname || "익명",
-    date: formatCalendarDate(apiReview.createdAt),
+    date: parseCreatedAt(apiReview.createdAt),
     overallRating: apiReview.overallRating,
     content: apiReview.content || "",
     anonymous: isAnonymous,

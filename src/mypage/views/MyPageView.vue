@@ -1,11 +1,13 @@
 <script setup>
-import { computed, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 
 import { useAuthStore } from "../../user/stores/useAuthStore";
 import { useMyPageStore } from "../stores/useMyPageStore";
+import { getErrorMessage } from "../../common/api/axios.js";
 
 import TheFooter from "../../common/components/TheFooter.vue";
+import BaseToast from "../../common/components/BaseToast.vue";
 import UserProfileSummary from "../../user/components/UserProfileSummary.vue";
 import MyPageTabs from "../components/MyPageTabs.vue";
 import SavedConditionList from "../../condition/components/SavedConditionList.vue";
@@ -23,10 +25,10 @@ const userProfile = computed(() => auth.user);
 const tab = ref("conditions");
 
 const editingReview = ref(null);
+const pageToast = ref(null);
 
-const myReviews = computed(() => {
-  return mypage.allReviews.slice(0, 20);
-});
+// 실제 DB에 저장된 "내가 쓴 리뷰" 목록 (useMyPageStore.fetchMyReviews 결과)
+const myReviews = computed(() => mypage.myReviews);
 
 const tabs = computed(() => [
   {
@@ -77,16 +79,39 @@ function updateNickname(updatedUser) {
   });
 }
 
-function saveReview(updatedReview) {
-  mypage.updateReview(updatedReview);
+/*
+ * [수정] ReviewEditModal은 실제로 "updated" 이벤트(수정된 리뷰의 API 응답)를
+ * emit하는데, 이 화면에서는 "save" 이벤트를 듣고 있어 리뷰 수정이 화면에
+ * 전혀 반영되지 않던 문제가 있었다. 이벤트 이름을 맞추고, API 응답을 그대로
+ * store에 반영하도록 수정했다.
+ */
+function saveReview(apiReview) {
+  mypage.applyUpdatedReview(apiReview);
   editingReview.value = null;
+  pageToast.value = "리뷰가 수정되었습니다.";
 }
 
-function deleteReview(id) {
-  mypage.allReviews = mypage.allReviews.filter(
-    (review) => review.id !== id,
-  );
+/*
+ * [수정] 기존에는 실제 삭제 API를 호출하지 않고 화면(store) 상태에서만 리뷰를
+ * 지워서, 새로고침하면 삭제했던 리뷰가 다시 나타나는 문제가 있었다. 이제 실제
+ * DB 삭제가 성공한 경우에만 목록에서 제거한다.
+ */
+async function deleteReview(id) {
+  if (!window.confirm("이 리뷰를 삭제할까요? 삭제하면 되돌릴 수 없어요.")) return;
+
+  try {
+    await mypage.deleteMyReview(id);
+    pageToast.value = "리뷰가 삭제되었습니다.";
+  } catch (error) {
+    console.error("리뷰 삭제 실패:", error.response?.data || error);
+    pageToast.value =
+      getErrorMessage(error, "리뷰 삭제에 실패했습니다. 잠시 후 다시 시도해주세요.");
+  }
 }
+
+onMounted(() => {
+  mypage.fetchMyReviews();
+});
 </script>
 
 <template>
@@ -95,8 +120,10 @@ function deleteReview(id) {
       v-if="editingReview"
       :review="editingReview"
       @close="editingReview = null"
-      @save="saveReview"
+      @updated="saveReview"
     />
+
+    <BaseToast v-if="pageToast" :message="pageToast" @done="pageToast = null" />
 
     <div class="border-b border-border bg-white">
       <UserProfileSummary
@@ -135,13 +162,21 @@ function deleteReview(id) {
         @load="loadResult"
       />
 
-      <MyReviewList
-        v-else-if="tab === 'reviews'"
-        :reviews="myReviews"
-        @navigate="navigate"
-        @edit="(review) => (editingReview = review)"
-        @delete="deleteReview"
-      />
+      <template v-else-if="tab === 'reviews'">
+        <div v-if="mypage.myReviewsStatus === 'loading'" class="text-center py-20 text-sm text-muted-foreground">
+          리뷰를 불러오는 중이에요...
+        </div>
+        <div v-else-if="mypage.myReviewsStatus === 'error'" class="text-center py-20 text-sm text-red-500">
+          {{ mypage.myReviewsError }}
+        </div>
+        <MyReviewList
+          v-else
+          :reviews="myReviews"
+          @navigate="navigate"
+          @edit="(review) => (editingReview = review)"
+          @delete="deleteReview"
+        />
+      </template>
     </div>
 
     <TheFooter />

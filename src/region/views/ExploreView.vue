@@ -5,6 +5,7 @@ import { Check, ChevronLeft, ChevronRight, Map } from 'lucide-vue-next'
 import ExploreHeader from '@/region/components/ExploreHeader.vue'
 import ExploreTabs from '@/region/components/ExploreTabs.vue'
 import ReviewWriteModal from '@/review/components/ReviewWriteModal.vue'
+import LoginRequiredModal from '@/common/components/LoginRequiredModal.vue'
 import { loadSeoulGeojson } from '@/common/utils/loadSeoulGeojson.js'
 import { loadKakaoMap } from '@/common/utils/loadKakaoMap.js'
 import StarDisplay from '@/common/components/StarDisplay.vue'
@@ -12,14 +13,26 @@ import BaseToast from '@/common/components/BaseToast.vue'
 import TheFooter from '@/common/components/TheFooter.vue'
 import { DONG_DATA } from '@/common/utils/mockData'
 import { useNeighborhoodStore } from '@/region/stores/useNeighborhoodStore'
+import { useMyPageStore } from '@/mypage/stores/useMyPageStore'
+import { useAuthStore } from '@/user/stores/useAuthStore'
 import { useDongStats } from '@/region/composables/useDongStats'
-import { getAdminDong } from '@/region/api/neighborhood.js'
+import { getAdminDong, getReviewStatsByGu } from '@/region/api/neighborhood.js'
 import { getReviews } from '@/review/api/review.js'
 import { mapReviewResponse } from '@/review/constants.js'
+import { getErrorMessage } from '@/common/api/axios.js'
 
 const route = useRoute()
 const router = useRouter()
 const nbhd = useNeighborhoodStore()
+/*
+ * [수정] 동 상세 화면의 "저장" 버튼(isDongSaved / toggleSaveDong)이 mypage store를
+ * 참조하고 있었는데 정작 이 파일에서 useMyPageStore를 import/호출하지 않아서
+ * mypage가 정의되지 않은 상태였다. 그 결과 동을 선택할 때마다
+ * "ReferenceError: mypage is not defined"가 발생해 리뷰 탭을 포함한 동 상세
+ * 화면 전체가 렌더링되지 않았다.
+ */
+const mypage = useMyPageStore()
+const auth = useAuthStore()
 
 const selectedDistrict = computed({
   get: () => route.params.district || null,
@@ -41,6 +54,59 @@ const dongList = computed(() => {
 function selectDong(dong) {
   router.push(`/explore/${selectedDistrict.value}/${dong}`)
 }
+
+/*
+ * 구를 선택했을 때, 동 목록 각각에 실제 DB에 저장된 리뷰 개수/평균 별점을 매핑해
+ * 보여준다. 동마다 admin_dong_id 조회 + 리뷰 조회를 따로 하면 동이 많은 구에서
+ * 요청이 수십 개씩 나가므로, 백엔드에서 구 단위로 한 번에 집계해주는
+ * /api/admin-dongs/review-stats를 사용한다.
+ * { 동이름: { count, avg } } 형태로 저장한다.
+ */
+const dongReviewStats = ref({})
+const dongReviewStatsLoading = ref(false)
+
+async function loadDongReviewStats(district) {
+  if (!district) {
+    dongReviewStats.value = {}
+    return
+  }
+
+  dongReviewStatsLoading.value = true
+
+  try {
+    const res = await getReviewStatsByGu(district)
+
+    // 응답을 기다리는 사이에 사용자가 다른 구를 선택했다면, 늦게 도착한 이전 구
+    // 결과로 최신 화면을 덮어쓰지 않는다.
+    if (selectedDistrict.value !== district) return
+
+    dongReviewStats.value = Object.fromEntries(
+      res.data.map((row) => [
+        row.dongName,
+        { count: row.reviewCount, avg: row.avgRating ?? 0 },
+      ]),
+    )
+  } catch (error) {
+    console.error(`${district} 리뷰 요약 조회 실패:`, error.response?.data || error)
+    if (selectedDistrict.value === district) dongReviewStats.value = {}
+  } finally {
+    if (selectedDistrict.value === district) dongReviewStatsLoading.value = false
+  }
+}
+
+watch(selectedDistrict, (district) => loadDongReviewStats(district), { immediate: true })
+
+// 선택된 구 전체의 리뷰 요약(총 리뷰 개수, 평균 별점). 동별 평균값을 리뷰 개수로
+// 가중 평균하면 전체 평균과 정확히 같아진다.
+const districtReviewSummary = computed(() => {
+  const stats = Object.values(dongReviewStats.value)
+  const totalCount = stats.reduce((sum, s) => sum + s.count, 0)
+
+  if (totalCount === 0) return { count: 0, avg: 0 }
+
+  const totalScore = stats.reduce((sum, s) => sum + s.avg * s.count, 0)
+  return { count: totalCount, avg: totalScore / totalCount }
+})
 
 // ── 동 상세 화면 ──
 const showReviewForm = ref(false)
@@ -81,7 +147,7 @@ async function loadDongReviews(district, dong) {
     adminDong.value = null
     dongReviewList.value = []
     reviewsError.value =
-      error.response?.data?.message || '리뷰 정보를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.'
+      getErrorMessage(error, '리뷰 정보를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.')
   } finally {
     reviewsLoading.value = false
   }
@@ -123,8 +189,15 @@ async function toggleSaveDong() {
   }
 }
 
-// 리뷰 작성 모달을 열기 전, 실제 admin_dong_id가 준비되었는지 확인한다.
+// 리뷰 작성 모달을 열기 전, 로그인 여부와 실제 admin_dong_id가 준비되었는지 확인한다.
+const showLoginRequired = ref(false)
+
 function openReviewForm() {
+  if (!auth.isLoggedIn) {
+    showLoginRequired.value = true
+    return
+  }
+
   if (!adminDong.value) {
     saveToast.value =
       reviewsError.value || '동네 정보를 불러오는 중이에요. 잠시 후 다시 시도해주세요.'
@@ -466,6 +539,11 @@ function initMap() {
       @close="showReviewForm = false"
       @created="handleReviewCreated"
     />
+    <LoginRequiredModal
+      v-if="showLoginRequired"
+      message="로그인한 회원만 리뷰를 작성할 수 있어요."
+      @close="showLoginRequired = false"
+    />
     <BaseToast v-if="saveToast" :message="saveToast" @done="saveToast = null" />
 
     <div class="border-b border-border bg-white sticky top-15 z-20">
@@ -558,6 +636,14 @@ function initMap() {
           <div class="flex items-start justify-between">
             <div>
               <h2 class="text-2xl font-bold text-foreground">{{ selectedDistrict }}</h2>
+              <div
+                v-if="districtReviewSummary.count > 0"
+                class="flex items-center gap-1.5 mt-1"
+              >
+                <StarDisplay :rating="districtReviewSummary.avg" :size="14" />
+                <span class="text-sm font-bold text-foreground">{{ districtReviewSummary.avg.toFixed(1) }}</span>
+                <span class="text-xs text-muted-foreground">({{ districtReviewSummary.count }}개 리뷰)</span>
+              </div>
             </div>
             <span
               v-if="districtData"
@@ -610,6 +696,15 @@ function initMap() {
                       class="text-sm font-semibold text-foreground group-hover:text-primary transition-colors"
                     >
                       {{ dong }}
+                    </div>
+                    <div v-if="!dongReviewStatsLoading" class="flex items-center gap-1.5 mt-1">
+                      <template v-if="dongReviewStats[dong]?.count > 0">
+                        <StarDisplay :rating="dongReviewStats[dong].avg" :size="11" />
+                        <span class="text-xs text-muted-foreground">
+                          {{ dongReviewStats[dong].avg.toFixed(1) }} · {{ dongReviewStats[dong].count }}개
+                        </span>
+                      </template>
+                      <span v-else class="text-xs text-muted-foreground">리뷰 없음</span>
                     </div>
                   </div>
                   <ChevronRight
