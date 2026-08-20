@@ -11,7 +11,7 @@ const emit = defineEmits(['listings'])
 const TABS = ['통근', '주거비', '치안', '생활 인프라']
 const tab = ref('통근')
 
-const hash = computed(() => props.n.id.split('').reduce((a, c) => a + c.charCodeAt(0), 0) % 20)
+const hash = computed(() => props.n.dongName.split('').reduce((a, c) => a + c.charCodeAt(0), 0) % 20)
 </script>
 
 <template>

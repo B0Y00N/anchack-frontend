@@ -167,14 +167,26 @@ const dongAvgOverall = computed(() =>
     ? dongReviewList.value.reduce((s, r) => s + r.overallRating, 0) / dongReviewList.value.length
     : 0,
 )
+// 관심 동네는 이제 실제 adminDongId로 서버에 저장되므로(동 이름 문자열이 아니라),
+// admin_dong_id 조회가 끝나기 전에는 무엇을 저장할지 알 수 없다.
 const isDongSaved = computed(() =>
-  selectedDong.value ? mypage.savedNeighborhoods.includes(selectedDong.value) : false,
+  adminDong.value ? mypage.savedNeighborhoods.includes(adminDong.value.adminDongId) : false,
 )
 
-function toggleSaveDong() {
+async function toggleSaveDong() {
+  if (!adminDong.value) {
+    saveToast.value =
+      reviewsError.value || '동네 정보를 불러오는 중이에요. 잠시 후 다시 시도해주세요.'
+    return
+  }
+
   const willSave = !isDongSaved.value
-  mypage.toggleSavedNeighborhood(selectedDong.value)
-  if (willSave) saveToast.value = '관심 동네에 추가되었습니다.'
+  try {
+    await mypage.toggleSavedNeighborhood(adminDong.value.adminDongId)
+    if (willSave) saveToast.value = '관심 동네에 추가되었습니다.'
+  } catch (error) {
+    saveToast.value = '요청을 처리하지 못했어요. 잠시 후 다시 시도해주세요.'
+  }
 }
 
 // 리뷰 작성 모달을 열기 전, 로그인 여부와 실제 admin_dong_id가 준비되었는지 확인한다.

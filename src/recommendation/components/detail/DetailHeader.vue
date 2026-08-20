@@ -14,7 +14,7 @@ const emit = defineEmits(["back", "listings", "toggle-save", "compare"]);
     <button @click="emit('back')" class="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-primary mb-6 font-medium"><ChevronLeft :size="16" /> 추천 결과로 돌아가기</button>
     <div class="flex items-start justify-between mb-8">
       <div>
-        <h1 class="text-4xl font-bold text-foreground mb-1">{{ n.id }}</h1>
+        <h1 class="text-4xl font-bold text-foreground mb-1">{{ n.guName }} {{ n.dongName }}</h1>
         <div class="flex items-center gap-3">
           <p class="text-xl font-bold text-primary">적합도 {{ n.score }}점</p>
           <div class="flex items-center gap-1">
