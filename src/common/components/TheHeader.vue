@@ -1,4 +1,5 @@
 <script setup>
+import { watch } from "vue";
 import { useRouter } from "vue-router";
 import { User, LogOut, Search, ShoppingCart } from "lucide-vue-next";
 import SproutLogo from "./SproutLogo.vue";
@@ -11,11 +12,22 @@ const auth = useAuthStore();
 const nbhd = useNeighborhoodStore();
 const mypage = useMyPageStore();
 
+// 로그인 확인(router 가드의 loadUser)이 언제 끝날지 몰라서, 헤더가 항상 떠 있다는
+// 점을 이용해 로그인 상태가 true가 되는 시점에 관심 동네 목록을 한 번 받아온다.
+watch(
+  () => auth.isLoggedIn,
+  (loggedIn) => {
+    if (loggedIn) mypage.fetchSavedNeighborhoods();
+  },
+  { immediate: true },
+);
+
 function navigate(path) {
   router.push(path);
 }
 function logout() {
   auth.logout();
+  mypage.resetSavedNeighborhoods();
   router.push("/");
 }
 </script>
