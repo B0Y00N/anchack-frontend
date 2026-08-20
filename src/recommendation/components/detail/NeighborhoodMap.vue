@@ -1,67 +1,23 @@
-<script>
-import { getAdminDongPlaces } from '@/region/api/neighborhood.js'
-
-// 진짜 모듈 스코프 캐시. <script setup> 최상단에 두면 컴포넌트 인스턴스(=탭 하나)가
-// 새로 마운트될 때마다 다시 실행돼 캐시가 매번 초기화되므로, 인스턴스와 무관하게
-// 딱 한 번만 평가되는 일반 <script> 블록에 둬야 탭을 오가도(통근<->치안<->생활 인프라)
-// 같은 동은 재요청되지 않는다.
-const placesCache = new Map() // adminDongId -> Promise<Place[]>
-function fetchAllPlaces(adminDongId) {
-  if (!placesCache.has(adminDongId)) {
-    const promise = getAdminDongPlaces(adminDongId).then((res) => res.data.data)
-    // 실패를 그대로 캐싱하면 이후 같은 동을 다시 열어도 재시도가 안 된다.
-    // 캐시에는 안 남기고, 호출부(fetchAllPlaces를 부른 쪽)에서 reject를 그대로 받게 둔다.
-    promise.catch(() => placesCache.delete(adminDongId))
-    placesCache.set(adminDongId, promise)
-  }
-  return placesCache.get(adminDongId)
-}
-</script>
-
 <script setup>
 import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { MAP_MARKER_SETS } from '@/common/utils/mockData.js'
 import { loadSeoulGeojson } from '@/common/utils/loadSeoulGeojson.js'
 import { loadKakaoMap } from '@/common/utils/loadKakaoMap.js'
 
 const props = defineProps({
   dong: { type: String, required: true },
-  adminDongId: { type: Number, required: true },
   hash: { type: Number, required: true },
   mode: { type: String, required: true }, // "infra" | "safety" | "transit"
 })
 
 const modeLabel = { infra: '생활 인프라', safety: '치안 시설', transit: '교통 시설' }
+const set = computed(() => MAP_MARKER_SETS[props.mode])
 
-// 화면 카테고리 <-> places.category(DB enum) 매핑 (API_USER_CONDITIONS_REVISION_REQUEST.md P2 참고).
-// anonymous: true인 카테고리는 name이 사람이 읽을 만한 값이 아니라(예: CCTV 관리번호)
-// 마커 라벨에 장소명 대신 카테고리명을 쓴다.
-const CATEGORY_CONFIG = {
-  infra: [
-    { label: '편의점', color: '#52B37A', emoji: '🏪', dbCategories: ['CONVENIENCE_STORE'] },
-    { label: '카페/음식점', color: '#C47C3A', emoji: '☕', dbCategories: ['CAFE', 'RESTAURANT'] },
-    { label: '병원/약국', color: '#E05555', emoji: '🏥', dbCategories: ['HOSPITAL', 'PHARMACY'] },
-    { label: '헬스장', color: '#2D7A4F', emoji: '🏋️', dbCategories: ['GYM'] },
-    { label: '은행', color: '#7B68A6', emoji: '🏦', dbCategories: ['BANK'] },
-    { label: '공원', color: '#4A9E6B', emoji: '🌳', dbCategories: ['PARK'] },
-    { label: '백화점', color: '#B03A8C', emoji: '🏬', dbCategories: ['DEPARTMENT_STORE'] },
-    { label: '대형마트', color: '#D97706', emoji: '🛒', dbCategories: ['MART'] },
-  ],
-  safety: [
-    { label: 'CCTV', color: '#546E7A', emoji: '📷', dbCategories: ['CCTV'], anonymous: true },
-    { label: '가로등', color: '#F59E0B', emoji: '💡', dbCategories: ['STREET_LIGHT'], anonymous: true },
-    { label: '경찰서/지구대', color: '#1565C0', emoji: '🚔', dbCategories: ['POLICE'] },
-    { label: '안전비상벨', color: '#E53935', emoji: '🚨', dbCategories: ['SAFETY_BELL'], anonymous: true },
-  ],
-  transit: [
-    { label: '지하철역', color: '#1976D2', emoji: '🚇', dbCategories: ['SUBWAY_STATION'] },
-    { label: '버스정류장', color: '#E64A19', emoji: '🚌', dbCategories: ['BUS_STOP'] },
-  ],
-}
-// CCTV처럼 한 동에 몇 백 개씩 있는 카테고리를 다 찍으면 지도가 못 알아볼 정도로 빽빽해져서
-// 카테고리당 렌더링 개수를 여기서 제한한다(서버는 전체를 다 내려줌).
-const MAX_MARKERS_PER_CATEGORY = 30
-
-const set = computed(() => CATEGORY_CONFIG[props.mode])
+// 인프라/교통은 카카오맵 실제 장소 데이터를 사용하고,
+// 치안은 경찰서/지구대만 실제 데이터이고 CCTV·가로등·안전비상벨은 추정치라 문구를 다르게 표시
+const dataBadgeLabel = computed(() =>
+  props.mode === 'safety' ? '일부 실제 데이터 · 일부 추정' : '카카오맵 실제 장소 데이터',
+)
 
 const active = ref(new Set(set.value.map((c) => c.label)))
 function toggleCat(label) {
@@ -71,44 +27,52 @@ function toggleCat(label) {
   active.value = next
 }
 
-// 지도/geojson/장소 데이터가 준비되기 전엔 빈 화면 대신 로딩 표시를 보여준다
+// 지도/geojson이 준비되기 전엔 빈 화면 대신 로딩 표시를 보여준다
 const isLoading = ref(true)
 const loadError = ref(false)
-const placesError = ref(false)
+
+// dong/mode/hash가 같으면 항상 같은 마커 배치가 나오도록 하는 시드 기반 난수
+function sr(a, b) {
+  const x = Math.sin(a * 317 + b * 97 + props.hash * 53) * 43758.5453
+  return x - Math.floor(x)
+}
 
 const mapElId = `infra-map-${Math.random().toString(36).slice(2)}`
 
+// 카테고리별로 실제 카카오맵 장소 데이터를 조회하기 위한 매핑.
+// code가 있으면 카카오 장소 카테고리 코드로 검색하고, keyword만 있으면 키워드 검색을 사용한다.
+// CCTV·가로등·안전비상벨처럼 카카오에 업체/장소로 등록되지 않는 공공시설은
+// 실제 장소 데이터가 없으므로 매핑에서 제외하고, 기존 추정(모의) 배치를 그대로 사용한다.
+const CATEGORY_SEARCH_TERM = {
+  편의점: { code: 'CS2' },
+  '카페/음식점': { keyword: '카페' },
+  '병원/약국': { code: 'HP8' },
+  헬스장: { keyword: '헬스장' },
+  은행: { code: 'BK9' },
+  공원: { keyword: '공원' },
+  백화점: { keyword: '백화점' },
+  대형마트: { code: 'MT1' },
+  '경찰서/지구대': { keyword: '지구대' },
+  지하철역: { code: 'SW8' },
+  버스정류장: { keyword: '버스정류장' },
+  따릉이: { keyword: '따릉이 대여소' },
+  택시승강장: { keyword: '택시승강장' },
+}
+const MAX_PER_CATEGORY = 5
+
 let kakaoMapInstance = null
+let placesService = null
+let requestToken = 0
 let dongBoundsMap = {}
 let dongPathsMap = {}
 let boundaryPolygon = null
 let overlays = []
 let geoLoaded = false
 
-const allPlaces = ref([])
-
 // 컴포넌트가 이미 언마운트된 뒤에 도착하는 비동기 콜백(SDK 로드, geojson fetch,
-// nextTick, places 조회 결과)이 사라진 컨테이너에 지도를 다시 붙이거나
+// nextTick, Places 검색 결과)이 사라진 컨테이너에 지도를 다시 붙이거나
 // 오버레이를 새로 그리는 것을 막기 위한 플래그.
 let disposed = false
-
-// adminDongId가 바뀔 수 있는 채로 컴포넌트 인스턴스가 재사용되는 경우(상세 페이지가
-// key 없이 n만 바뀌며 재사용될 때)가 있어서, 응답이 도착한 시점에도 여전히 같은 동을
-// 보고 있는 요청인지 확인한 뒤에만 화면에 반영한다(늦게 온 이전 동 응답이 최신 화면을
-// 덮어쓰는 것을 방지).
-function loadPlacesFor(adminDongId) {
-  placesError.value = false
-  fetchAllPlaces(adminDongId)
-    .then((places) => {
-      if (disposed || props.adminDongId !== adminDongId) return
-      allPlaces.value = places
-      if (kakaoMapInstance) renderMarkers()
-    })
-    .catch(() => {
-      if (disposed || props.adminDongId !== adminDongId) return
-      placesError.value = true
-    })
-}
 
 onMounted(() => {
   // 지도 컴포넌트마다 각자 스크립트를 추가하면 중복 로드로 간헐적 실패가
@@ -124,12 +88,11 @@ onMounted(() => {
       isLoading.value = false
       loadError.value = true
     })
-
-  loadPlacesFor(props.adminDongId)
 })
 
 onBeforeUnmount(() => {
   disposed = true
+  requestToken += 1 // 이미 나가있는 Places 검색 응답을 전부 낡은 것으로 무효화
   overlays.forEach((o) => o.setMap(null))
   overlays = []
   if (boundaryPolygon) {
@@ -153,6 +116,10 @@ function initMap() {
     level: 5,
   })
   kakaoMapInstance = map
+
+  if (window.kakao.maps.services && !placesService) {
+    placesService = new window.kakao.maps.services.Places()
+  }
 
   if (geoLoaded) {
     focusOnCurrentDong()
@@ -253,18 +220,71 @@ function renderMarkers() {
   overlays = []
   if (!kakaoMapInstance) return
 
-  set.value.forEach((cat) => {
-    if (!active.value.has(cat.label)) return
+  const key = resolveDongKey(props.dong)
+  const bounds = dongBoundsMap[key]
+  if (!bounds || bounds.isEmpty()) return
 
-    allPlaces.value
-      .filter((p) => cat.dbCategories.includes(p.category))
-      .slice(0, MAX_MARKERS_PER_CATEGORY)
-      .forEach((place) => {
-        const overlay = createMarkerOverlay(place.lat, place.lng, cat, cat.anonymous ? null : place.name)
-        overlay.setMap(kakaoMapInstance)
-        overlays.push(overlay)
-      })
+  // 동/카테고리가 바뀌는 도중에 이전 검색 결과가 뒤늦게 그려지지 않도록 토큰으로 구분
+  requestToken += 1
+  const myToken = requestToken
+
+  let seed = 0
+  set.value.forEach((cat) => {
+    if (!active.value.has(cat.label)) {
+      seed += 20
+      return
+    }
+
+    const searchInfo = CATEGORY_SEARCH_TERM[cat.label]
+    if (searchInfo && placesService) {
+      searchRealPlaces(cat, searchInfo, bounds, myToken)
+    } else {
+      renderMockMarkersForCategory(cat, bounds, seed)
+    }
+    seed += 20
   })
+}
+
+// 카카오맵 실제 장소 데이터(Places API)로 카테고리별 위치를 찾아 마커로 표시
+function searchRealPlaces(cat, searchInfo, bounds, token) {
+  const options = { bounds, size: MAX_PER_CATEGORY }
+
+  const handleResult = (data, status) => {
+    if (disposed || token !== requestToken) return // 언마운트됐거나 오래된 요청 결과는 무시
+    if (status !== window.kakao.maps.services.Status.OK) return
+
+    data.slice(0, MAX_PER_CATEGORY).forEach((place) => {
+      const overlay = createMarkerOverlay(
+        parseFloat(place.y),
+        parseFloat(place.x),
+        cat,
+        place.place_name,
+      )
+      overlay.setMap(kakaoMapInstance)
+      overlays.push(overlay)
+    })
+  }
+
+  if (searchInfo.code) {
+    placesService.categorySearch(searchInfo.code, handleResult, options)
+  } else {
+    placesService.keywordSearch(searchInfo.keyword, handleResult, options)
+  }
+}
+
+// 카카오에 업체/장소로 등록되지 않는 공공시설(CCTV, 가로등, 안전비상벨)은
+// 실제 위치 데이터를 가져올 수 없어 기존 방식대로 범위 안에 추정 배치한다.
+function renderMockMarkersForCategory(cat, bounds, seed) {
+  const sw = bounds.getSouthWest()
+  const ne = bounds.getNorthEast()
+  const count = Math.max(1, cat.baseCount + Math.floor(sr(seed, 7) * 2) - 1)
+  for (let i = 0; i < count; i++) {
+    const lat = sw.getLat() + sr(seed + i, 1) * (ne.getLat() - sw.getLat())
+    const lng = sw.getLng() + sr(seed + i, 2) * (ne.getLng() - sw.getLng())
+    const overlay = createMarkerOverlay(lat, lng, cat)
+    overlay.setMap(kakaoMapInstance)
+    overlays.push(overlay)
+  }
 }
 
 function truncateLabel(text, max = 12) {
@@ -278,8 +298,8 @@ function createMarkerOverlay(lat, lng, cat, placeName) {
   el.style.setProperty('--pin-color', cat.color)
   const labelText = placeName ? truncateLabel(placeName) : cat.label
 
-  // placeName은 외부 데이터 소스(공공데이터 등)에서 온 값이라 신뢰할 수 없는 입력이다.
-  // innerHTML 대신 textContent로 넣어 XSS를 막는다.
+  // placeName은 카카오 Places API 응답값(업주가 직접 등록하는 장소명)이라
+  // 신뢰할 수 없는 외부 입력이다. innerHTML 대신 textContent로 넣어 XSS를 막는다.
   const label = document.createElement('span')
   label.className = 'infra-pin-label'
   label.textContent = `${cat.emoji ?? ''} ${labelText}`
@@ -298,10 +318,9 @@ function createMarkerOverlay(lat, lng, cat, placeName) {
 }
 
 watch(
-  () => [props.dong, props.adminDongId, props.hash, props.mode],
+  () => [props.dong, props.hash, props.mode],
   () => {
     active.value = new Set(set.value.map((c) => c.label))
-    loadPlacesFor(props.adminDongId)
     if (kakaoMapInstance) focusOnCurrentDong()
   },
 )
@@ -317,8 +336,15 @@ watch(active, () => {
       <h4 class="font-semibold text-foreground text-sm">
         {{ dong }} 주변 {{ modeLabel[mode] }} 지도
       </h4>
-      <span class="text-xs text-muted-foreground bg-muted px-2.5 py-1 rounded-full">실제 장소 데이터</span>
+      <span class="text-xs text-muted-foreground bg-muted px-2.5 py-1 rounded-full">{{
+        dataBadgeLabel
+      }}</span>
     </div>
+
+    <p v-if="mode === 'safety'" class="px-5 pt-2 text-[10px] text-muted-foreground">
+      경찰서/지구대는 실제 위치를 표시하며, CCTV·가로등·안전비상벨은 공개된 장소 데이터가 없어 범위
+      내 추정 위치로 표시됩니다.
+    </p>
 
     <div class="px-5 py-3 border-b border-border/50 flex flex-wrap gap-2">
       <button
@@ -337,19 +363,6 @@ watch(active, () => {
           :style="{ background: active.has(cat.label) ? cat.color : '#D1D5DB' }"
         />
         {{ cat.label }}
-      </button>
-    </div>
-
-    <div
-      v-if="placesError"
-      class="px-5 py-2.5 border-b border-amber-200 bg-amber-50 flex items-center justify-between gap-3"
-    >
-      <p class="text-xs text-amber-800">장소 정보를 불러오지 못했어요.</p>
-      <button
-        @click="loadPlacesFor(adminDongId)"
-        class="text-xs font-semibold text-amber-800 underline flex-shrink-0"
-      >
-        다시 시도
       </button>
     </div>
 

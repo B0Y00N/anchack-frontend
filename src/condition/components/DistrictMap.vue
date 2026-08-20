@@ -3,6 +3,7 @@ import { ref, watch, onMounted, onBeforeUnmount } from 'vue'
 import { X } from 'lucide-vue-next'
 import { loadSeoulGeojson } from '@/common/utils/loadSeoulGeojson.js'
 import { loadKakaoMap } from '@/common/utils/loadKakaoMap.js'
+import { useMapLoadState } from '@/common/composables/useMapLoadState.js'
 
 const props = defineProps({
   modelValue: { type: Array, required: true },
@@ -11,13 +12,16 @@ const props = defineProps({
 const emit = defineEmits(['update:modelValue'])
 
 const hoveredDistrict = ref(null)
+// 지도/geojson이 준비되기 전엔 빈 영역 대신 로딩·오류 표시를 보여준다
+// (ResultMap.vue / NeighborhoodMap.vue와 동일한 공용 컴포저블 사용)
+const { isLoading, loadError, markLoaded, markError } = useMapLoadState()
+
 let districtPolygonMap = {}
 let originalPolygonColors = {}
 let complementaryPolygonColors = {}
 let kakaoMapInstance = null
 
-// document.getElementById('step-map') 하드코딩(ResultMap.vue와 같은 id를 써서
-// 충돌 위험이 있었음) 대신 template ref 사용
+// document.getElementById('step-map') 하드코딩 충돌 방지를 위한 template ref 사용
 const mapContainer = ref(null)
 
 const RAINBOW_25_COLORS = [
@@ -114,26 +118,24 @@ watch([() => props.modelValue, hoveredDistrict], () => {
   })
 })
 
-// 컴포넌트가 이미 언마운트된 뒤에 도착하는 비동기 콜백(SDK 로드, geojson fetch,
-// setTimeout)이 사라진 컨테이너에 지도를 다시 붙이거나 폴리곤을 새로 그리는 것을
-// 막기 위한 플래그. onBeforeUnmount에서 true로 바뀐다.
+// 컴포넌트 언마운트 후 비동기 콜백 실행 방지 플래그
 let disposed = false
 
 onMounted(() => {
-  // 지도 컴포넌트마다 각자 스크립트를 추가하면 중복 로드로 간헐적 실패가
-  // 생길 수 있어, 앱 전체에서 공유하는 loadKakaoMap() 싱글턴을 사용한다.
   loadKakaoMap()
     .then(() => {
       if (disposed) return
       initMap()
     })
-    .catch((err) => console.error('카카오맵 스크립트 로드 실패', err))
+    .catch((err) => {
+      if (disposed) return
+      console.error('카카오맵 스크립트 로드 실패', err)
+      markError()
+    })
 })
 
 onBeforeUnmount(() => {
   disposed = true
-  // 페이지/스텝을 벗어난 뒤에도 지도 인스턴스·폴리곤이 남아 계속 타일을
-  // 요청하는 것을 막는다.
   Object.values(districtPolygonMap).forEach((polygon) => polygon.setMap(null))
   districtPolygonMap = {}
   kakaoMapInstance = null
@@ -147,19 +149,14 @@ function initMap() {
   originalPolygonColors = {}
   complementaryPolygonColors = {}
 
-  // 카카오맵 지도 레벨은 정수(1~14)만 지원한다. 소수점 레벨(9.4 등)을 넘기면
-  // 타일 요청 URL이 존재하지 않는 경로가 되어 타일 서버가 전부 400을 반환한다.
   const map = new window.kakao.maps.Map(container, {
     center: new window.kakao.maps.LatLng(37.5665, 126.978),
-    level: 9
+    level: 9, // 첫 번째 코드의 지도 레벨 유지 (필요시 10으로 변경 가능)
   })
   kakaoMapInstance = map
 
   map.setZoomable(false)
   map.setDraggable(false)
-
-  // 카카오맵 이용약관상 로고/저작권 표기는 항상 노출되어야 하므로,
-  // DOM에서 임의로 지우지 않고 공식 API로 위치만 조정한다.
   map.setCopyrightPosition(window.kakao.maps.CopyrightPosition.BOTTOMRIGHT, true)
 
   setTimeout(() => {
@@ -286,13 +283,21 @@ function initMap() {
           customOverlay.setMap(map)
         }
       })
+
+      if (disposed) return
+      markLoaded()
     })
-    .catch((err) => console.error('GeoJSON 로드 오류:', err))
+    .catch((err) => {
+      if (disposed) return
+      console.error('GeoJSON 로드 오류:', err)
+      markError()
+    })
 }
 </script>
 
 <template>
   <div class="relative w-full">
+    <!-- 상단 호버 안내 배너 -->
     <div
       v-if="hoveredDistrict"
       class="absolute top-2 left-1/2 -translate-x-1/2 z-10 bg-foreground text-white text-xs font-bold px-3 py-1.5 rounded-full pointer-events-none shadow-lg"
@@ -307,8 +312,32 @@ function initMap() {
       }}
     </div>
 
-    <div ref="mapContainer" class="w-full rounded-xl overflow-hidden" style="height: 360px"></div>
+    <!-- 지도 컨테이너 및 로딩/에러 레이어 -->
+    <div class="relative w-full" style="height: 360px">
+      <div ref="mapContainer" class="w-full h-full rounded-xl overflow-hidden"></div>
 
+      <!-- 로딩 중 스피너 표시 -->
+      <div
+        v-if="isLoading"
+        class="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-background/90 rounded-xl"
+      >
+        <div
+          class="w-6 h-6 rounded-full border-[3px] border-muted border-t-primary animate-spin"
+        ></div>
+        <p class="text-xs text-muted-foreground">지도를 불러오는 중이에요...</p>
+      </div>
+
+      <!-- 에러 발생 시 안내 표시 -->
+      <div
+        v-else-if="loadError"
+        class="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-background/90 rounded-xl px-4 text-center"
+      >
+        <p class="text-xs font-semibold text-foreground">지도를 불러오지 못했어요</p>
+        <p class="text-[11px] text-muted-foreground">새로고침해 주세요.</p>
+      </div>
+    </div>
+
+    <!-- 하단 선택된 목록 및 카운트 -->
     <div class="flex items-center justify-between mt-3">
       <div class="flex flex-wrap gap-2">
         <span v-if="modelValue.length === 0" class="text-xs text-muted-foreground"
