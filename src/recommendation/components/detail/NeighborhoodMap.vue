@@ -40,25 +40,33 @@ function sr(a, b) {
 const mapElId = `infra-map-${Math.random().toString(36).slice(2)}`
 
 // 카테고리별로 실제 카카오맵 장소 데이터를 조회하기 위한 매핑.
+// 값은 검색 조건의 배열이다 — "카페/음식점"처럼 이름이 복합인 카테고리는
+// 하위 유형 각각을 따로 검색해서 합쳐야 실제로 카페와 음식점이 둘 다 나온다.
+// (예전엔 검색 조건을 1개만 넣어서, 카페/음식점은 카페만, 병원/약국은 병원만 조회되던 버그가 있었다)
 // code가 있으면 카카오 장소 카테고리 코드로 검색하고, keyword만 있으면 키워드 검색을 사용한다.
 // CCTV·가로등·안전비상벨처럼 카카오에 업체/장소로 등록되지 않는 공공시설은
 // 실제 장소 데이터가 없으므로 매핑에서 제외하고, 기존 추정(모의) 배치를 그대로 사용한다.
 const CATEGORY_SEARCH_TERM = {
-  '편의점': { code: 'CS2' },
-  '카페/음식점': { keyword: '카페' },
-  '병원/약국': { code: 'HP8' },
-  '헬스장': { keyword: '헬스장' },
-  '은행': { code: 'BK9' },
-  '공원': { keyword: '공원' },
-  '백화점': { keyword: '백화점' },
-  '대형마트': { code: 'MT1' },
-  '경찰서/지구대': { keyword: '지구대' },
-  '지하철역': { code: 'SW8' },
-  '버스정류장': { keyword: '버스정류장' },
-  '따릉이': { keyword: '따릉이 대여소' },
-  '택시승강장': { keyword: '택시승강장' },
+  '편의점': [{ code: 'CS2' }],
+  '카페/음식점': [{ code: 'FD6' }, { code: 'CE7' }],
+  '병원/약국': [{ code: 'HP8' }, { code: 'PM9' }],
+  '헬스장': [{ keyword: '헬스장' }],
+  '은행': [{ code: 'BK9' }],
+  '공원': [{ keyword: '공원' }],
+  '백화점': [{ keyword: '백화점' }],
+  '대형마트': [{ code: 'MT1' }],
+  '경찰서/지구대': [{ keyword: '경찰서' }, { keyword: '지구대' }],
+  '지하철역': [{ code: 'SW8' }],
+  '버스정류장': [{ keyword: '버스정류장' }],
+  '따릉이': [{ keyword: '따릉이 대여소' }],
+  '택시승강장': [{ keyword: '택시승강장' }],
 }
 const MAX_PER_CATEGORY = 5
+
+// Places API 검색이 ERROR(네트워크 문제 등)로 실패한 카테고리 라벨을 담아둔다.
+// ZERO_RESULT(그냥 결과 없음)는 정상 상태라 여기 안 들어간다 — 이 목록에 있는
+// 카테고리에만 "다시 시도" 버튼이 붙은 오류 안내를 보여준다.
+const categorySearchErrors = ref(new Set())
 
 let kakaoMapInstance = null
 let placesService = null
@@ -218,6 +226,7 @@ function focusOnCurrentDong() {
 function renderMarkers() {
   overlays.forEach((o) => o.setMap(null))
   overlays = []
+  categorySearchErrors.value = new Set()
   if (!kakaoMapInstance) return
 
   const key = resolveDongKey(props.dong)
@@ -234,26 +243,58 @@ function renderMarkers() {
       seed += 20
       return
     }
-
-    const searchInfo = CATEGORY_SEARCH_TERM[cat.label]
-    if (searchInfo && placesService) {
-      searchRealPlaces(cat, searchInfo, bounds, myToken)
-    } else {
-      renderMockMarkersForCategory(cat, bounds, seed)
-    }
+    renderCategoryMarkers(cat, bounds, myToken, seed)
     seed += 20
   })
 }
 
-// 카카오맵 실제 장소 데이터(Places API)로 카테고리별 위치를 찾아 마커로 표시
-function searchRealPlaces(cat, searchInfo, bounds, token) {
+function renderCategoryMarkers(cat, bounds, token, seed = 0) {
+  const searchInfos = CATEGORY_SEARCH_TERM[cat.label]
+  if (searchInfos && placesService) {
+    searchRealPlaces(cat, searchInfos, bounds, token)
+  } else {
+    renderMockMarkersForCategory(cat, bounds, seed)
+  }
+}
+
+// 오류로 실패했던 카테고리 하나만 다시 검색한다 ("다시 시도" 버튼에서 호출).
+// 다른 카테고리의 진행 중인 검색에는 영향을 주지 않도록 requestToken은 새로 올리지 않는다.
+function retryCategorySearch(label) {
+  if (!kakaoMapInstance) return
+  const cat = set.value.find((c) => c.label === label)
+  if (!cat) return
+
+  const key = resolveDongKey(props.dong)
+  const bounds = dongBoundsMap[key]
+  if (!bounds || bounds.isEmpty()) return
+
+  renderCategoryMarkers(cat, bounds, requestToken)
+}
+
+// 카카오맵 실제 장소 데이터(Places API)로 카테고리별 위치를 찾아 마커로 표시.
+// searchInfos는 검색 조건 배열이다 — "카페/음식점"처럼 하위 유형이 여러 개인
+// 카테고리는 각 조건을 따로 검색한 뒤 장소 id 기준으로 중복 제거해서 합친다.
+function searchRealPlaces(cat, searchInfos, bounds, token) {
   const options = { bounds, size: MAX_PER_CATEGORY }
+  const collected = new Map() // place.id -> place (중복 제거용)
+  let remaining = searchInfos.length
+  let hadNonErrorResponse = false // OK 또는 ZERO_RESULT(정상, 결과 없음)를 하나라도 받았는지
 
-  const handleResult = (data, status) => {
-    if (disposed || token !== requestToken) return // 언마운트됐거나 오래된 요청 결과는 무시
-    if (status !== window.kakao.maps.services.Status.OK) return
+  const finishIfDone = () => {
+    if (remaining > 0) return
+    if (disposed || token !== requestToken) return
 
-    data.slice(0, MAX_PER_CATEGORY).forEach((place) => {
+    // ERROR만 진짜 실패로 취급한다. ZERO_RESULT(단순히 근처에 없음)는
+    // 정상 상태이므로 오류 안내를 띄우지 않는다.
+    const nextErrors = new Set(categorySearchErrors.value)
+    if (hadNonErrorResponse) {
+      nextErrors.delete(cat.label)
+    } else {
+      nextErrors.add(cat.label)
+    }
+    categorySearchErrors.value = nextErrors
+
+    ;[...collected.values()].slice(0, MAX_PER_CATEGORY).forEach((place) => {
       const overlay = createMarkerOverlay(
         parseFloat(place.y),
         parseFloat(place.x),
@@ -265,11 +306,32 @@ function searchRealPlaces(cat, searchInfo, bounds, token) {
     })
   }
 
-  if (searchInfo.code) {
-    placesService.categorySearch(searchInfo.code, handleResult, options)
-  } else {
-    placesService.keywordSearch(searchInfo.keyword, handleResult, options)
-  }
+  searchInfos.forEach((searchInfo) => {
+    const handleResult = (data, status) => {
+      if (disposed || token !== requestToken) return // 언마운트됐거나 오래된 요청 결과는 무시
+
+      if (status === window.kakao.maps.services.Status.ERROR) {
+        console.error(`${cat.label} 장소 검색 실패`)
+      } else {
+        // OK 또는 ZERO_RESULT는 둘 다 정상 응답이다.
+        hadNonErrorResponse = true
+        if (Array.isArray(data)) {
+          data.forEach((place) => {
+            if (!collected.has(place.id)) collected.set(place.id, place)
+          })
+        }
+      }
+
+      remaining -= 1
+      finishIfDone()
+    }
+
+    if (searchInfo.code) {
+      placesService.categorySearch(searchInfo.code, handleResult, options)
+    } else {
+      placesService.keywordSearch(searchInfo.keyword, handleResult, options)
+    }
+  })
 }
 
 // 카카오에 업체/장소로 등록되지 않는 공공시설(CCTV, 가로등, 안전비상벨)은
@@ -364,6 +426,29 @@ watch(active, () => {
         />
         {{ cat.label }}
       </button>
+    </div>
+
+    <!-- Places 검색이 ERROR로 실패한 카테고리에만 재시도 안내를 보여준다.
+         (단순 결과 없음은 정상이라 여기 안 뜬다) -->
+    <div
+      v-if="categorySearchErrors.size > 0"
+      class="px-5 py-2 border-b border-border/50 flex flex-wrap gap-2"
+    >
+      <div
+        v-for="label in categorySearchErrors"
+        :key="label"
+        role="alert"
+        class="flex items-center gap-2 text-[11px] text-red-600 bg-red-50 border border-red-200 rounded-full pl-2.5 pr-1.5 py-1"
+      >
+        <span>{{ label }} 검색에 실패했어요</span>
+        <button
+          type="button"
+          @click="retryCategorySearch(label)"
+          class="font-semibold underline decoration-dotted underline-offset-2 px-1"
+        >
+          다시 시도
+        </button>
+      </div>
     </div>
 
     <div class="relative">
