@@ -72,6 +72,11 @@ const categorySearchErrors = ref(new Set())
 let kakaoMapInstance = null
 let placesService = null
 let requestToken = 0
+// 카테고리 라벨 -> 그 카테고리의 최신 요청 버전 번호.
+// requestToken 하나만으로는 "다시 시도" 버튼을 빠르게 두 번 눌렀을 때
+// 먼저 시작한 요청도 여전히 유효한 것으로 취급되어 마커가 중복 생성된다.
+// 카테고리별로 따로 버전을 매겨, 그 카테고리의 가장 최근 요청만 결과를 반영하게 한다.
+let categoryRequestTokens = {}
 let dongBoundsMap = {}
 let dongPathsMap = {}
 let boundaryPolygon = null
@@ -140,7 +145,11 @@ function initMap() {
   loadSeoulGeojson()
     .then((geojson) => {
       if (disposed) return
-      if (!geojson || !geojson.features) return
+      if (!geojson || !Array.isArray(geojson.features) || geojson.features.length === 0) {
+        console.error('GeoJSON 데이터가 비어 있거나 잘못되었습니다.')
+        markError()
+        return
+      }
 
       geojson.features.forEach((feature) => {
         const fullName = feature.properties.adm_nm || ''
@@ -253,13 +262,19 @@ function renderMarkers() {
 // 카테고리 하나를 그린다. 기존에 그려져 있던 그 카테고리의 오버레이는
 // (일반 렌더링이든 재시도든) 먼저 지우고 새로 그려서 중복이 남지 않게 한다.
 function renderCategoryMarkers(cat, key, bounds, token, seed = 0) {
+  // "다시 시도"를 빠르게 두 번 누르면, 먼저 시작한 요청도 requestToken은 그대로라
+  // 여전히 유효한 것으로 취급되어 결과가 두 번 반영될 수 있다. 카테고리별로
+  // 별도 버전을 매겨, 그 카테고리의 가장 최근 요청 결과만 반영되게 한다.
+  const categoryToken = (categoryRequestTokens[cat.label] ?? 0) + 1
+  categoryRequestTokens[cat.label] = categoryToken
+
   clearCategoryOverlays(cat.label)
 
   const searchInfos = CATEGORY_SEARCH_TERM[cat.label]
   if (searchInfos && placesService) {
-    searchRealPlaces(cat, key, searchInfos, bounds, token)
+    searchRealPlaces(cat, key, searchInfos, bounds, token, categoryToken)
   } else {
-    renderMockMarkersForCategory(cat, bounds, seed)
+    renderMockMarkersForCategory(cat, key, bounds, seed)
   }
 }
 
@@ -272,7 +287,8 @@ function clearCategoryOverlays(label) {
 }
 
 // 오류로 실패했던 카테고리 하나만 다시 검색한다 ("다시 시도" 버튼에서 호출).
-// 다른 카테고리의 진행 중인 검색에는 영향을 주지 않도록 requestToken은 새로 올리지 않는다.
+// 다른 카테고리의 진행 중인 검색에는 영향을 주지 않도록 requestToken은 새로 올리지 않는다
+// (카테고리별 중복 방지는 renderCategoryMarkers가 매기는 categoryToken이 담당한다).
 function retryCategorySearch(label) {
   if (!kakaoMapInstance) return
   const cat = set.value.find((c) => c.label === label)
@@ -310,15 +326,21 @@ function isPointInRing(lat, lng, ring) {
 // 카카오맵 실제 장소 데이터(Places API)로 카테고리별 위치를 찾아 마커로 표시.
 // searchInfos는 검색 조건 배열이다 — "카페/음식점"처럼 하위 유형이 여러 개인
 // 카테고리는 각 조건을 따로 검색한 뒤 장소 id 기준으로 중복 제거해서 합친다.
-function searchRealPlaces(cat, key, searchInfos, bounds, token) {
+function searchRealPlaces(cat, key, searchInfos, bounds, token, categoryToken) {
   const options = { bounds, size: MAX_PER_CATEGORY }
   const collected = new Map() // place.id -> place (중복 제거용)
   let remaining = searchInfos.length
   let hadError = false // ERROR 응답을 하나라도 받았는지 (하나라도 있으면 부분 실패로 안내한다)
 
+  // 언마운트/동 전환(requestToken)뿐 아니라, 같은 카테고리의 더 최신 요청이
+  // 이미 시작됐는지(categoryToken)까지 같이 확인해야 "다시 시도" 연타로 인한
+  // 중복 렌더링을 막을 수 있다.
+  const isCurrentRequest = () =>
+    !disposed && token === requestToken && categoryToken === categoryRequestTokens[cat.label]
+
   const finishIfDone = () => {
     if (remaining > 0) return
-    if (disposed || token !== requestToken) return
+    if (!isCurrentRequest()) return
 
     // ERROR가 하나라도 있었으면, 다른 하위 유형이 성공해서 일부 결과가
     // 나왔더라도 사용자에게 "일부 실패"를 알려준다 (조용히 숨기지 않는다).
@@ -348,7 +370,7 @@ function searchRealPlaces(cat, key, searchInfos, bounds, token) {
 
   searchInfos.forEach((searchInfo) => {
     const handleResult = (data, status) => {
-      if (disposed || token !== requestToken) return // 언마운트됐거나 오래된 요청 결과는 무시
+      if (!isCurrentRequest()) return // 언마운트됐거나 오래된(카테고리 기준으로도) 요청 결과는 무시
 
       if (status === window.kakao.maps.services.Status.ERROR) {
         hadError = true
@@ -373,17 +395,24 @@ function searchRealPlaces(cat, key, searchInfos, bounds, token) {
 }
 
 // 카카오에 업체/장소로 등록되지 않는 공공시설(CCTV, 가로등, 안전비상벨)은
-// 실제 위치 데이터를 가져올 수 없어 기존 방식대로 범위 안에 추정 배치한다.
-function renderMockMarkersForCategory(cat, bounds, seed) {
+// 실제 위치 데이터를 가져올 수 없어 범위 안에 추정 배치한다. 사각형(bounds)
+// 안에서만 뽑으면 오목한 경계나 MultiPolygon 동에서는 실제 동 밖에 찍힐 수
+// 있어, 실제 폴리곤(isPointInDongPolygon) 안에 들어오는 좌표만 채택한다.
+function renderMockMarkersForCategory(cat, key, bounds, seed) {
   const sw = bounds.getSouthWest()
   const ne = bounds.getNorthEast()
   const count = Math.max(1, cat.baseCount + Math.floor(sr(seed, 7) * 2) - 1)
-  for (let i = 0; i < count; i++) {
-    const lat = sw.getLat() + sr(seed + i, 1) * (ne.getLat() - sw.getLat())
-    const lng = sw.getLng() + sr(seed + i, 2) * (ne.getLng() - sw.getLng())
+
+  let placed = 0
+  for (let attempt = 0; placed < count && attempt < count * 20; attempt++) {
+    const lat = sw.getLat() + sr(seed + attempt, 1) * (ne.getLat() - sw.getLat())
+    const lng = sw.getLng() + sr(seed + attempt, 2) * (ne.getLng() - sw.getLng())
+    if (!isPointInDongPolygon(lat, lng, key)) continue
+
     const overlay = createMarkerOverlay(lat, lng, cat)
     overlay.setMap(kakaoMapInstance)
     overlaysByCategory[cat.label].push(overlay)
+    placed += 1
   }
 }
 
