@@ -208,26 +208,35 @@ function focusOnCurrentDong() {
 
     const key = resolveDongKey(props.dong)
     const bounds = dongBoundsMap[key]
+    const paths = dongPathsMap[key]
 
-    if (bounds && !bounds.isEmpty()) {
-      kakaoMapInstance.setBounds(bounds, -39.78, -39.78, -39.78, -39.78)
-
-      // 너무 과도하게 확대되는 것을 방지하기 위해 레벨이 너무 낮으면(확대 과다) 5로 고정
-      const currentLevel = kakaoMapInstance.getLevel()
-      if (currentLevel < 5) {
-        kakaoMapInstance.setLevel(6)
-      }
-
-      boundaryPolygon = new window.kakao.maps.Polygon({
-        path: dongPathsMap[key],
-        strokeWeight: 3,
-        strokeColor: '#2D7A4F',
-        strokeOpacity: 0.9,
-        fillColor: '#2D7A4F',
-        fillOpacity: 0.12,
-      })
-      boundaryPolygon.setMap(kakaoMapInstance)
+    // geojson 자체는 정상 로드됐어도, 요청받은 동(props.dong)의 경계가
+    // 그 안에 없을 수 있다. 이 경우 지도는 텅 빈 채로 markLoaded()가 불려
+    // 사용자에게는 "정상 로드된 빈 지도"처럼 보이게 된다 — 조용히 넘어가지 않고
+    // 명확한 오류로 처리한다.
+    if (!bounds || bounds.isEmpty() || !paths?.length) {
+      console.error(`행정동 경계를 찾을 수 없습니다: ${props.dong}`)
+      markError()
+      return
     }
+
+    kakaoMapInstance.setBounds(bounds, -39.78, -39.78, -39.78, -39.78)
+
+    // 너무 과도하게 확대되는 것을 방지하기 위해 레벨이 너무 낮으면(확대 과다) 5로 고정
+    const currentLevel = kakaoMapInstance.getLevel()
+    if (currentLevel < 5) {
+      kakaoMapInstance.setLevel(6)
+    }
+
+    boundaryPolygon = new window.kakao.maps.Polygon({
+      path: paths,
+      strokeWeight: 3,
+      strokeColor: '#2D7A4F',
+      strokeOpacity: 0.9,
+      fillColor: '#2D7A4F',
+      fillOpacity: 0.12,
+    })
+    boundaryPolygon.setMap(kakaoMapInstance)
 
     renderMarkers()
     markLoaded()
