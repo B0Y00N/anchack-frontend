@@ -13,10 +13,25 @@ const mypage = useMyPageStore();
 
 const neighborhoods = ref([]);
 const status = ref("idle"); // idle | loading | success | error
+const errorMessage = ref("");
 const toast = ref(null);
 
 async function loadFavoriteDetails() {
+  // 첫 await 전에 loading으로 두지 않으면 status가 기본값 idle이라 빈 화면이
+  // 잠깐 깜빡인 뒤에야 로딩 문구가 뜬다(PR 리뷰 지적).
+  status.value = "loading";
+
   await mypage.fetchSavedNeighborhoods();
+
+  // fetchSavedNeighborhoods는 401(비로그인)만 빈 목록 성공으로 처리하고, 그 외
+  // 실패는 savedNeighborhoodsStatus를 "error"로 노출한다. 예전엔 이 실패가
+  // 내부에서 조용히 삼켜져서 서버 오류가 나도 "저장한 동네가 없다"는 빈 목록
+  // 성공으로 잘못 표시되고 재시도 버튼도 안 떴다(PR 리뷰 지적).
+  if (mypage.savedNeighborhoodsStatus === "error") {
+    status.value = "error";
+    errorMessage.value = mypage.savedNeighborhoodsError;
+    return;
+  }
 
   if (mypage.savedNeighborhoods.length === 0) {
     neighborhoods.value = [];
@@ -24,7 +39,6 @@ async function loadFavoriteDetails() {
     return;
   }
 
-  status.value = "loading";
   try {
     const res = await getAdminDongsBatch(mypage.savedNeighborhoods);
     // savedNeighborhoods 순서(최근 등록순)를 그대로 유지한다.
@@ -33,6 +47,7 @@ async function loadFavoriteDetails() {
     status.value = "success";
   } catch (error) {
     status.value = "error";
+    errorMessage.value = "관심 동네 목록을 불러오지 못했어요.";
   }
 }
 
@@ -80,7 +95,9 @@ async function removeFavorite(adminDongId) {
       </p>
 
       <div v-else-if="status === 'error'" class="text-center py-20">
-        <p class="text-sm text-muted-foreground mb-3">관심 동네 목록을 불러오지 못했어요.</p>
+        <p class="text-sm text-muted-foreground mb-3">
+          {{ errorMessage || "관심 동네 목록을 불러오지 못했어요." }}
+        </p>
         <button
           @click="loadFavoriteDetails"
           class="text-sm font-semibold text-primary border border-primary/25 rounded-full px-4 py-2 hover:bg-secondary"
