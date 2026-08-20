@@ -3,6 +3,7 @@ import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { MAP_MARKER_SETS } from '@/common/utils/mockData.js'
 import { loadSeoulGeojson } from '@/common/utils/loadSeoulGeojson.js'
 import { loadKakaoMap } from '@/common/utils/loadKakaoMap.js'
+import { useMapLoadState } from '@/common/composables/useMapLoadState.js'
 
 const props = defineProps({
   dong: { type: String, required: true },
@@ -28,8 +29,8 @@ function toggleCat(label) {
 }
 
 // 지도/geojson이 준비되기 전엔 빈 화면 대신 로딩 표시를 보여준다
-const isLoading = ref(true)
-const loadError = ref(false)
+// (ResultMap.vue / DistrictMap.vue와 동일한 공용 컴포저블 사용)
+const { isLoading, loadError, markLoaded, markError } = useMapLoadState()
 
 // dong/mode/hash가 같으면 항상 같은 마커 배치가 나오도록 하는 시드 기반 난수
 function sr(a, b) {
@@ -74,7 +75,10 @@ let requestToken = 0
 let dongBoundsMap = {}
 let dongPathsMap = {}
 let boundaryPolygon = null
-let overlays = []
+// 카테고리 라벨 -> 그 카테고리가 그린 오버레이 배열. 카테고리별로 추적해야
+// "다시 시도" 시 그 카테고리 마커만 지우고 새로 그릴 수 있다 (전체를 지우면
+// 다른 카테고리 마커까지 깜빡이며 다시 그려져야 해서 비효율적).
+let overlaysByCategory = {}
 let geoLoaded = false
 
 // 컴포넌트가 이미 언마운트된 뒤에 도착하는 비동기 콜백(SDK 로드, geojson fetch,
@@ -93,16 +97,15 @@ onMounted(() => {
     .catch((err) => {
       if (disposed) return
       console.error('카카오맵 스크립트 로드 실패', err)
-      isLoading.value = false
-      loadError.value = true
+      markError()
     })
 })
 
 onBeforeUnmount(() => {
   disposed = true
   requestToken += 1 // 이미 나가있는 Places 검색 응답을 전부 낡은 것으로 무효화
-  overlays.forEach((o) => o.setMap(null))
-  overlays = []
+  Object.values(overlaysByCategory).forEach((list) => list.forEach((o) => o.setMap(null)))
+  overlaysByCategory = {}
   if (boundaryPolygon) {
     boundaryPolygon.setMap(null)
     boundaryPolygon = null
@@ -177,8 +180,7 @@ function initMap() {
     .catch((err) => {
       if (disposed) return
       console.error('GeoJSON 로드 오류:', err)
-      isLoading.value = false
-      loadError.value = true
+      markError()
     })
 }
 
@@ -219,13 +221,13 @@ function focusOnCurrentDong() {
     }
 
     renderMarkers()
-    isLoading.value = false
+    markLoaded()
   })
 }
 
 function renderMarkers() {
-  overlays.forEach((o) => o.setMap(null))
-  overlays = []
+  Object.values(overlaysByCategory).forEach((list) => list.forEach((o) => o.setMap(null)))
+  overlaysByCategory = {}
   categorySearchErrors.value = new Set()
   if (!kakaoMapInstance) return
 
@@ -243,18 +245,30 @@ function renderMarkers() {
       seed += 20
       return
     }
-    renderCategoryMarkers(cat, bounds, myToken, seed)
+    renderCategoryMarkers(cat, key, bounds, myToken, seed)
     seed += 20
   })
 }
 
-function renderCategoryMarkers(cat, bounds, token, seed = 0) {
+// 카테고리 하나를 그린다. 기존에 그려져 있던 그 카테고리의 오버레이는
+// (일반 렌더링이든 재시도든) 먼저 지우고 새로 그려서 중복이 남지 않게 한다.
+function renderCategoryMarkers(cat, key, bounds, token, seed = 0) {
+  clearCategoryOverlays(cat.label)
+
   const searchInfos = CATEGORY_SEARCH_TERM[cat.label]
   if (searchInfos && placesService) {
-    searchRealPlaces(cat, searchInfos, bounds, token)
+    searchRealPlaces(cat, key, searchInfos, bounds, token)
   } else {
     renderMockMarkersForCategory(cat, bounds, seed)
   }
+}
+
+function clearCategoryOverlays(label) {
+  const existing = overlaysByCategory[label]
+  if (existing) {
+    existing.forEach((o) => o.setMap(null))
+  }
+  overlaysByCategory[label] = []
 }
 
 // 오류로 실패했던 카테고리 하나만 다시 검색한다 ("다시 시도" 버튼에서 호출).
@@ -268,33 +282,59 @@ function retryCategorySearch(label) {
   const bounds = dongBoundsMap[key]
   if (!bounds || bounds.isEmpty()) return
 
-  renderCategoryMarkers(cat, bounds, requestToken)
+  renderCategoryMarkers(cat, key, bounds, requestToken)
+}
+
+// ray-casting 알고리즘으로 좌표가 동 경계 폴리곤 안에 있는지 판별한다.
+// bounds(사각형)만으로 거르면, 사각형 안이지만 실제 동 경계 밖인 장소가
+// 섞여 나올 수 있어 실제 폴리곤(dongPathsMap) 기준으로 한 번 더 걸러낸다.
+function isPointInDongPolygon(lat, lng, key) {
+  const paths = dongPathsMap[key]
+  if (!paths || paths.length === 0) return true // 폴리곤 정보가 없으면 걸러내지 않는다(안전한 폴백)
+  return paths.some((ring) => isPointInRing(lat, lng, ring))
+}
+
+function isPointInRing(lat, lng, ring) {
+  let inside = false
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const yi = ring[i].getLat()
+    const xi = ring[i].getLng()
+    const yj = ring[j].getLat()
+    const xj = ring[j].getLng()
+    const intersects = yi > lat !== yj > lat && lng < ((xj - xi) * (lat - yi)) / (yj - yi) + xi
+    if (intersects) inside = !inside
+  }
+  return inside
 }
 
 // 카카오맵 실제 장소 데이터(Places API)로 카테고리별 위치를 찾아 마커로 표시.
 // searchInfos는 검색 조건 배열이다 — "카페/음식점"처럼 하위 유형이 여러 개인
 // 카테고리는 각 조건을 따로 검색한 뒤 장소 id 기준으로 중복 제거해서 합친다.
-function searchRealPlaces(cat, searchInfos, bounds, token) {
+function searchRealPlaces(cat, key, searchInfos, bounds, token) {
   const options = { bounds, size: MAX_PER_CATEGORY }
   const collected = new Map() // place.id -> place (중복 제거용)
   let remaining = searchInfos.length
-  let hadNonErrorResponse = false // OK 또는 ZERO_RESULT(정상, 결과 없음)를 하나라도 받았는지
+  let hadError = false // ERROR 응답을 하나라도 받았는지 (하나라도 있으면 부분 실패로 안내한다)
 
   const finishIfDone = () => {
     if (remaining > 0) return
     if (disposed || token !== requestToken) return
 
-    // ERROR만 진짜 실패로 취급한다. ZERO_RESULT(단순히 근처에 없음)는
-    // 정상 상태이므로 오류 안내를 띄우지 않는다.
+    // ERROR가 하나라도 있었으면, 다른 하위 유형이 성공해서 일부 결과가
+    // 나왔더라도 사용자에게 "일부 실패"를 알려준다 (조용히 숨기지 않는다).
     const nextErrors = new Set(categorySearchErrors.value)
-    if (hadNonErrorResponse) {
-      nextErrors.delete(cat.label)
-    } else {
+    if (hadError) {
       nextErrors.add(cat.label)
+    } else {
+      nextErrors.delete(cat.label)
     }
     categorySearchErrors.value = nextErrors
 
-    ;[...collected.values()].slice(0, MAX_PER_CATEGORY).forEach((place) => {
+    const inBounds = [...collected.values()].filter((place) =>
+      isPointInDongPolygon(parseFloat(place.y), parseFloat(place.x), key),
+    )
+
+    inBounds.slice(0, MAX_PER_CATEGORY).forEach((place) => {
       const overlay = createMarkerOverlay(
         parseFloat(place.y),
         parseFloat(place.x),
@@ -302,7 +342,7 @@ function searchRealPlaces(cat, searchInfos, bounds, token) {
         place.place_name,
       )
       overlay.setMap(kakaoMapInstance)
-      overlays.push(overlay)
+      overlaysByCategory[cat.label].push(overlay)
     })
   }
 
@@ -311,15 +351,13 @@ function searchRealPlaces(cat, searchInfos, bounds, token) {
       if (disposed || token !== requestToken) return // 언마운트됐거나 오래된 요청 결과는 무시
 
       if (status === window.kakao.maps.services.Status.ERROR) {
+        hadError = true
         console.error(`${cat.label} 장소 검색 실패`)
-      } else {
+      } else if (Array.isArray(data)) {
         // OK 또는 ZERO_RESULT는 둘 다 정상 응답이다.
-        hadNonErrorResponse = true
-        if (Array.isArray(data)) {
-          data.forEach((place) => {
-            if (!collected.has(place.id)) collected.set(place.id, place)
-          })
-        }
+        data.forEach((place) => {
+          if (!collected.has(place.id)) collected.set(place.id, place)
+        })
       }
 
       remaining -= 1
@@ -345,7 +383,7 @@ function renderMockMarkersForCategory(cat, bounds, seed) {
     const lng = sw.getLng() + sr(seed + i, 2) * (ne.getLng() - sw.getLng())
     const overlay = createMarkerOverlay(lat, lng, cat)
     overlay.setMap(kakaoMapInstance)
-    overlays.push(overlay)
+    overlaysByCategory[cat.label].push(overlay)
   }
 }
 
