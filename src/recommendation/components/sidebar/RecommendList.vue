@@ -12,11 +12,81 @@ const props = defineProps({
   compareList: { type: Array, required: true },
   savedNeighborhoods: { type: Array, required: true },
   conditionSaved: { type: Boolean, default: false },
+  // 예산순 정렬에 쓸 필드(월세/전세)를 고르는 데 필요 - 조건 입력에서 고른 값 그대로("월세"|"전세")
+  rentType: { type: String, default: "월세" },
+  // admin-dongs/batch(월세 시세/치안 점수) 로딩 상태. 예산순/치안순은 이 데이터가 있어야 정렬 가능
+  detailsStatus: { type: String, default: "idle" },
 });
 const emit = defineEmits(["detail", "compare", "toggle-save", "go-compare", "save-condition-click", "show-saved-list"]);
 
-const activeFilter = ref("추천순");
-const FILTERS = ["추천순", "통근시간순", "예산순", "치안 관련 시설"];
+// destAddress를 안 넣은 검색(구 단위 검색)이면 recommendations 전체가 commuteTime=null로
+// 온다 - 이 경우 통근시간순은 정렬할 값 자체가 없다.
+const hasCommuteTime = computed(() => props.neighborhoods.some((n) => n.commuteTime != null));
+const detailsReady = computed(() => props.detailsStatus === "success");
+
+const FILTER_OPTIONS = [
+  { key: "score", label: "추천순" },
+  { key: "commute", label: "통근시간순" },
+  { key: "budget", label: "예산순" },
+  { key: "safety", label: "치안순" },
+];
+const filters = computed(() =>
+  FILTER_OPTIONS.map((f) => {
+    if (f.key === "commute" && !hasCommuteTime.value) {
+      return { ...f, disabled: true, tooltip: "통근지가 입력되지 않았어요" };
+    }
+    if ((f.key === "budget" || f.key === "safety") && !detailsReady.value) {
+      return { ...f, disabled: true, tooltip: "정보를 불러오는 중이에요" };
+    }
+    return { ...f, disabled: false, tooltip: "" };
+  }),
+);
+
+const activeFilter = ref("score");
+function selectFilter(f) {
+  if (f.disabled) return;
+  activeFilter.value = f.key;
+}
+
+// 필터 버튼 줄이 overflow-x-auto라 툴팁을 그 안에서 absolute로 띄우면 스크롤
+// 컨테이너의 페인트/쌓임 순서에 갇혀 아래 카드 목록에 가려진다. body로 순간이동시켜서
+// 어떤 부모의 overflow/z-index와도 무관하게 항상 맨 위에 뜨게 한다.
+const hoveredTooltip = ref(null);
+const tooltipPos = ref({ x: 0, y: 0 });
+function onFilterHover(f, event) {
+  if (!f.disabled || !f.tooltip) {
+    hoveredTooltip.value = null;
+    return;
+  }
+  hoveredTooltip.value = f.tooltip;
+  const rect = event.currentTarget.getBoundingClientRect();
+  tooltipPos.value = { x: rect.left + rect.width / 2, y: rect.bottom + 8 };
+}
+
+// null(값이 없는 동)은 항상 뒤로 보낸다.
+function compareNullable(a, b, ascending) {
+  if (a == null && b == null) return 0;
+  if (a == null) return 1;
+  if (b == null) return -1;
+  return ascending ? a - b : b - a;
+}
+
+const sortedNeighborhoods = computed(() => {
+  const list = [...props.neighborhoods];
+  switch (activeFilter.value) {
+    case "commute":
+      return list.sort((a, b) => compareNullable(a.commuteTime, b.commuteTime, true));
+    case "budget": {
+      const field = props.rentType === "전세" ? "deposit" : "monthly";
+      return list.sort((a, b) => compareNullable(a[field], b[field], true));
+    }
+    case "safety":
+      return list.sort((a, b) => compareNullable(a.safetyScore, b.safetyScore, false));
+    case "score":
+    default:
+      return list.sort((a, b) => compareNullable(a.score, b.score, false));
+  }
+});
 
 // compareList는 adminDongId 배열이라 그대로 보여주면 "360, 220 비교 중"처럼 숫자로
 // 뜬다. 목록에 있는 동 이름으로 바꿔서 표시한다.
@@ -48,15 +118,38 @@ const compareNames = computed(() =>
     </div>
 
     <div v-if="neighborhoods.length > 0" class="px-5 py-3 flex gap-2 overflow-x-auto border-b border-border [&::-webkit-scrollbar]:hidden">
-      <button
-        v-for="f in FILTERS"
-        :key="f"
-        @click="activeFilter = f"
-        :class="`px-3 py-1.5 rounded-full text-xs font-semibold border whitespace-nowrap flex-shrink-0 ${f === activeFilter ? 'bg-primary text-primary-foreground border-primary' : 'bg-white border-border hover:bg-secondary'}`"
+      <div
+        v-for="f in filters"
+        :key="f.key"
+        class="flex-shrink-0"
+        @mouseenter="onFilterHover(f, $event)"
+        @mouseleave="hoveredTooltip = null"
       >
-        {{ f === activeFilter ? "✓ " : "" }}{{ f }}
-      </button>
+        <button
+          :disabled="f.disabled"
+          @click="selectFilter(f)"
+          :class="`px-3 py-1.5 rounded-full text-xs font-semibold border whitespace-nowrap ${
+            f.disabled
+              ? 'pointer-events-none bg-muted text-muted-foreground/50 border-border cursor-not-allowed'
+              : f.key === activeFilter
+                ? 'bg-primary text-primary-foreground border-primary'
+                : 'bg-white border-border hover:bg-secondary'
+          }`"
+        >
+          {{ f.key === activeFilter ? "✓ " : "" }}{{ f.label }}
+        </button>
+      </div>
     </div>
+
+    <Teleport to="body">
+      <div
+        v-if="hoveredTooltip"
+        class="fixed z-[200] -translate-x-1/2 pointer-events-none whitespace-nowrap rounded-lg bg-foreground px-3 py-2 text-center text-xs text-white shadow-lg"
+        :style="{ left: tooltipPos.x + 'px', top: tooltipPos.y + 'px' }"
+      >
+        {{ hoveredTooltip }}
+      </div>
+    </Teleport>
 
     <div v-if="compareList.length >= 2 && neighborhoods.length > 0" class="px-5 py-3 bg-secondary flex items-center justify-between border-b border-primary/15">
       <div class="flex items-center gap-2 min-w-0"><RefreshCw :size="13" class="text-primary flex-shrink-0" /><span class="text-sm font-medium text-primary truncate">{{ compareNames }} 비교 중</span></div>
@@ -77,17 +170,19 @@ const compareNames = computed(() =>
       </div>
 
       <div v-else class="p-4 space-y-3">
-        <NeighborhoodCard
-          v-for="n in neighborhoods"
-          :key="n.id"
-          :n="n"
-          :rank="n.rank"
-          :compare-list="compareList"
-          :is-saved="savedNeighborhoods.includes(n.id)"
-          @detail="emit('detail', n.id)"
-          @compare="emit('compare', n.id)"
-          @toggle-save="emit('toggle-save', n.id)"
-        />
+        <TransitionGroup name="card-sort" tag="div" class="space-y-3 relative">
+          <NeighborhoodCard
+            v-for="(n, i) in sortedNeighborhoods"
+            :key="n.id"
+            :n="n"
+            :rank="i + 1"
+            :compare-list="compareList"
+            :is-saved="savedNeighborhoods.includes(n.id)"
+            @detail="emit('detail', n.id)"
+            @compare="emit('compare', n.id)"
+            @toggle-save="emit('toggle-save', n.id)"
+          />
+        </TransitionGroup>
         <div class="bg-card border border-border rounded-2xl p-5">
           <div class="flex items-center gap-2 mb-3"><TrendingUp :size="15" class="text-primary" /><p class="text-sm font-semibold text-foreground">조건을 완화하면 더 많은 동네가 있어요</p></div>
           <div class="space-y-2">
@@ -101,3 +196,26 @@ const compareNames = computed(() =>
     </div>
   </div>
 </template>
+
+<style scoped>
+/* 정렬 기준이 바뀔 때 카드가 새 위치로 스르륵 미끄러지도록(FLIP) */
+.card-sort-move {
+  transition: transform 0.35s ease;
+}
+.card-sort-enter-active,
+.card-sort-leave-active {
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
+}
+.card-sort-enter-from,
+.card-sort-leave-to {
+  opacity: 0;
+  transform: translateY(8px);
+}
+/* 카드가 빠지는 동안 남은 카드들이 문서 흐름을 기준으로 바로 자리를 채우도록 */
+.card-sort-leave-active {
+  position: absolute;
+  width: 100%;
+}
+</style>

@@ -140,6 +140,8 @@ function goListings() {
         :compare-list="nbhd.compareList"
         :saved-neighborhoods="mypage.savedNeighborhoods"
         :condition-saved="conditionSaved"
+        :rent-type="search.appState.rentType"
+        :details-status="recommendation.detailsStatus"
         @detail="goDetail"
         @compare="toggleCompare"
         @toggle-save="toggleSaveWithToast"
