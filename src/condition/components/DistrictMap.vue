@@ -167,7 +167,10 @@ function initMap() {
   loadSeoulGeojson()
     .then((geojson) => {
       if (disposed) return
-      if (!geojson || !geojson.features) return
+      if (!geojson || !geojson.features) {
+        markError()
+        return
+      }
 
       const districtColorMap = {}
       const allDistricts = []
@@ -319,6 +322,8 @@ function initMap() {
       <!-- 로딩 중 스피너 표시 -->
       <div
         v-if="isLoading"
+        role="status"
+        aria-live="polite"
         class="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-background/90 rounded-xl"
       >
         <div
@@ -330,6 +335,7 @@ function initMap() {
       <!-- 에러 발생 시 안내 표시 -->
       <div
         v-else-if="loadError"
+        role="alert"
         class="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-background/90 rounded-xl px-4 text-center"
       >
         <p class="text-xs font-semibold text-foreground">지도를 불러오지 못했어요</p>
@@ -341,7 +347,7 @@ function initMap() {
     <div class="flex items-center justify-between mt-3">
       <div class="flex flex-wrap gap-2">
         <span v-if="modelValue.length === 0" class="text-xs text-muted-foreground"
-          >서울 전 지역 대상</span
+        >서울 전 지역 대상</span
         >
         <button
           v-for="id in modelValue"
