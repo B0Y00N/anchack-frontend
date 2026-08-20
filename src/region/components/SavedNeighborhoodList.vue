@@ -11,22 +11,31 @@ const emit = defineEmits(["navigate", "remove"]);
 
 // 안전 종합 점수는 426개 동 전체를 대상으로 한 Z-score를 "50 + 10*z"로 옮긴 값
 // (백엔드 계산식 기준)이라 이론상 표준편차가 10점 근방이어야 하지만, 실제 배치
-// API로 426개 전체를 떠서 확인해보니 평균 50.00 / 표준편차 4.64 / 최댓값 62.46로
-// 훨씬 좁게 몰려 있었다(2025-08-20 기준 admin-dongs/batch 전수 조사). 그래서
-// 40/60 같은 임의 경계를 쓰면 "안전"이 전체 426개 중 6개(1.4%)만 걸리는 문제가
-// 있었음 - 실측 표준편차(≈4.6)를 반영해 45/55(평균±1σ)로 잡으면 대략
-// 13%/75%/12%로 정규분포에서 기대하는 비율에 가깝게 나뉜다.
+// API로 426개 전체를 떠서 확인해보니(2025-08-20 기준 admin-dongs/batch 전수 조사)
+// 평균 50.00 / 표준편차 4.64 / 최댓값 62.46로 훨씬 좁게 몰려 있었다. 평균 ±
+// 1표준편차(≈4.6, 반올림해 5)를 경계로 잡으면 대략 13%/75%/12%로 정규분포에서
+// 기대하는 비율에 가깝게 나뉜다.
+//
+// [PR 리뷰 반영] 표준편차가 작아서(4.6점) 두 구간 사이의 실질 격차가 크지 않은데,
+// "안전/주의" 같은 절대 판정 라벨을 쓰면 사용자가 "주의"를 실제로 위험한 동네로
+// 오해할 수 있다(안착은 거주지를 정하는 서비스라 이 오해가 실제 선택을 바꿈).
+// 그래서 라벨을 "서울 평균 대비 상대적으로 어디쯤인지"로 바꿨다. 이 45/55 기준
+// 자체도 위 스냅샷 시점 데이터에 맞춘 하드코딩이라, 지표를 재수집하면 다시 실측해서
+// 맞춰야 한다 - 백엔드가 나중에 백분위를 내려주면 이 상수 대신 그 값을 쓸 예정.
+const SAFETY_SCORE_HIGH_THRESHOLD = 55;
+const SAFETY_SCORE_LOW_THRESHOLD = 45;
+
 function safetyColor(score) {
   if (score == null) return "#9CA3AF";
-  if (score >= 55) return "#2D7A4F";
-  if (score >= 45) return "#D97706";
+  if (score >= SAFETY_SCORE_HIGH_THRESHOLD) return "#2D7A4F";
+  if (score >= SAFETY_SCORE_LOW_THRESHOLD) return "#D97706";
   return "#E11D48";
 }
 function safetyLabel(score) {
   if (score == null) return "정보 없음";
-  if (score >= 55) return "안전";
-  if (score >= 45) return "보통";
-  return "주의";
+  if (score >= SAFETY_SCORE_HIGH_THRESHOLD) return "서울 평균 이상";
+  if (score >= SAFETY_SCORE_LOW_THRESHOLD) return "평균 수준";
+  return "서울 평균 이하";
 }
 
 const INFRA_ITEMS = [
@@ -63,7 +72,8 @@ const INFRA_ITEMS = [
             <div>
               <h3 class="font-bold text-foreground">{{ n.guName }} {{ n.dongName }}</h3>
               <p class="text-xs text-primary font-semibold mt-0.5">
-                <template v-if="n.monthly != null">월세 {{ n.monthly }}만원</template>
+                <template v-if="n.deposit != null && n.monthly != null">보증금 {{ n.deposit }}만원 · 월세 {{ n.monthly }}만원</template>
+                <template v-else-if="n.monthly != null">월세 {{ n.monthly }}만원</template>
                 <template v-else-if="n.deposit != null">전세 {{ n.deposit }}만원</template>
                 <template v-else>시세 정보 없음</template>
               </p>
@@ -80,12 +90,22 @@ const INFRA_ITEMS = [
 
         <div class="flex items-center gap-4 mb-4 pb-4 border-b border-border/70">
           <RadialGauge
+            v-if="n.safetyScore != null"
             label="안전 종합"
-            :value="Math.round(n.safetyScore ?? 0)"
+            :value="Math.round(n.safetyScore)"
             :color="safetyColor(n.safetyScore)"
             :size="60"
             :thickness="7"
           />
+          <!-- safetyScore가 없을 때 RadialGauge에 0을 넘기면 게이지는 텅 빈 원으로,
+               라벨은 "정보 없음"으로 서로 다른 얘기를 해서(PR 리뷰 지적) 중립
+               placeholder로 대체한다. -->
+          <div v-else class="flex flex-col items-center gap-2 flex-shrink-0" style="width: 60px">
+            <div class="w-[60px] h-[60px] rounded-full border-[7px] border-muted flex items-center justify-center">
+              <span class="text-[10px] text-muted-foreground text-center leading-tight">정보<br />없음</span>
+            </div>
+            <span class="text-xs text-muted-foreground text-center">안전 종합</span>
+          </div>
           <div class="flex-1">
             <div class="flex items-center gap-1.5 mb-2">
               <span
