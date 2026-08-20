@@ -1,8 +1,18 @@
 <script setup>
 import { X, MapPin, BookOpen } from 'lucide-vue-next'
 
+// GET /user-conditions/saved 응답 그대로: [{ conditionId, title, rentalType, destAddress,
+// commuteType, maxCommuteTime, maxTransferCount, minArea, maxDeposit, maxRent, createdAt }]
 defineProps({ savedConditions: { type: Array, required: true } })
 const emit = defineEmits(['close'])
+
+const RENTAL_TYPE_LABEL = { MONTHLY: '월세', JEONSE: '전세' }
+const COMMUTE_TYPE_LABEL = { PUBLIC_TRANSIT: '대중교통', CAR: '자가용' }
+
+function formatDate(iso) {
+  if (!iso) return ''
+  return new Date(iso).toLocaleDateString('ko-KR').replace(/\. /g, '.').slice(0, -1)
+}
 </script>
 
 <template>
@@ -31,29 +41,29 @@ const emit = defineEmits(['close'])
           저장된 조건이 없어요.
         </div>
         <ul v-else class="divide-y divide-border/60">
-          <li v-for="c in savedConditions" :key="c.id" class="px-6 py-4">
+          <li v-for="c in savedConditions" :key="c.conditionId" class="px-6 py-4">
             <div class="flex items-start justify-between gap-3">
               <div class="min-w-0">
-                <p class="font-semibold text-foreground text-sm truncate">{{ c.title }}</p>
-                <p class="text-xs text-muted-foreground mt-1">{{ c.date }}</p>
+                <p class="font-semibold text-foreground text-sm truncate">{{ c.title || '제목 없는 조건' }}</p>
+                <p class="text-xs text-muted-foreground mt-1">{{ formatDate(c.createdAt) }}</p>
                 <div class="flex flex-wrap gap-1.5 mt-2">
                   <span
-                    v-if="c.state.addressTab === 'known' && c.state.detailAddress"
+                    v-if="c.destAddress"
                     class="inline-flex items-center gap-1 text-[11px] bg-muted px-2 py-0.5 rounded-full text-foreground/70"
                   >
-                    <MapPin :size="9" /> {{ c.state.detailAddress }}
+                    <MapPin :size="9" /> {{ c.destAddress }}
                   </span>
                   <span
-                    v-if="c.state.monthly > 0"
                     class="inline-flex items-center gap-1 text-[11px] bg-muted px-2 py-0.5 rounded-full text-foreground/70"
-                    >월세 {{ c.state.monthly }}만원 이하</span
                   >
+                    {{ RENTAL_TYPE_LABEL[c.rentalType] ?? c.rentalType }}<template v-if="c.maxDeposit"> · {{ c.maxDeposit }}만원</template><template v-if="c.maxRent"> · 월 {{ c.maxRent }}만원</template>
+                  </span>
                   <span
-                    v-for="p in c.state.priorities.slice(0, 2)"
-                    :key="p"
+                    v-if="c.maxCommuteTime"
                     class="inline-flex items-center gap-1 text-[11px] bg-primary/10 text-primary px-2 py-0.5 rounded-full"
-                    >{{ p }}</span
                   >
+                    {{ COMMUTE_TYPE_LABEL[c.commuteType] ?? c.commuteType }} {{ c.maxCommuteTime }}분 이내
+                  </span>
                 </div>
               </div>
               <BookOpen :size="14" class="text-muted-foreground flex-shrink-0 mt-0.5" />
