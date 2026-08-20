@@ -9,6 +9,8 @@ export const useMyPageStore = defineStore("mypage", {
   state: () => ({
     savedNeighborhoods: [], // 찜한 동네(adminDongId) 목록. createdAt DESC(최근 등록순) 유지
     savedNeighborhoodsLoaded: false, // fetchSavedNeighborhoods를 앱당 한 번만 부르기 위한 플래그
+    savedNeighborhoodsStatus: "idle", // idle | loading | success | error
+    savedNeighborhoodsError: "",
     savedConditions: [...DEFAULT_SAVED_CONDITIONS], // { id, title, state, date }
 
     /*
@@ -23,9 +25,14 @@ export const useMyPageStore = defineStore("mypage", {
   }),
   actions: {
     // 로그인 확인되는 시점에 한 번 불러서 캐싱한다(TheHeader.vue에서 호출).
-    // 비로그인 401은 정상 상황이라 조용히 무시한다.
+    // 비로그인 401은 정상 상황이라 빈 목록으로 성공 처리하고, 그 외 실패(서버 오류/
+    // 네트워크 문제 등)는 savedNeighborhoodsStatus를 "error"로 노출한다 - 예전엔 이걸
+    // 내부에서 조용히 삼켜서, 서버 오류가 나도 화면(FavoriteNeighborhoodsView.vue)은
+    // "저장한 동네가 없다"는 빈 목록 성공으로 착각해 재시도 UI도 못 띄웠다(PR 리뷰 지적).
     async fetchSavedNeighborhoods() {
       if (this.savedNeighborhoodsLoaded) return;
+
+      this.savedNeighborhoodsStatus = "loading";
 
       try {
         const res = await getFavoriteDongs();
@@ -33,12 +40,21 @@ export const useMyPageStore = defineStore("mypage", {
         // { success, data, error } 포맷으로 감싸져서 온다 - res.data가 아니라 res.data.data.
         this.savedNeighborhoods = res.data.data.map((f) => f.adminDongId);
         this.savedNeighborhoodsLoaded = true;
+        this.savedNeighborhoodsStatus = "success";
+        this.savedNeighborhoodsError = "";
       } catch (error) {
-        // 비로그인은 정상 상황이라 조용히 빈 목록으로 두지만, 그 외 오류(응답 형식이
-        // 다르거나 네트워크 문제 등)는 콘솔에 남겨서 조용히 묻히지 않게 한다.
-        if (error.response?.status !== 401) {
-          console.error("관심 동네 목록을 불러오지 못했습니다:", error);
+        if (error.response?.status === 401) {
+          // 비로그인은 정상 상황이라 빈 목록으로 둔다. 다음 시도 때(로그인 후) 재요청되도록
+          // savedNeighborhoodsLoaded는 true로 안 바꾼다.
+          this.savedNeighborhoods = [];
+          this.savedNeighborhoodsStatus = "success";
+          this.savedNeighborhoodsError = "";
+          return;
         }
+        console.error("관심 동네 목록을 불러오지 못했습니다:", error);
+        this.savedNeighborhoodsStatus = "error";
+        this.savedNeighborhoodsError =
+          getErrorMessage(error, "관심 동네 목록을 불러오지 못했어요. 잠시 후 다시 시도해주세요.");
         // 다음 시도 때 재요청되도록 savedNeighborhoodsLoaded는 true로 안 바꾼다.
       }
     },
