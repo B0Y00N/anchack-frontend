@@ -19,10 +19,10 @@ npm run dev
 ## 원본과 달라진 점 (알아두시면 좋은 것들)
 
 1. **라우팅**: 원본은 `page` state 문자열로 화면을 전환했지만, 여기서는 실제 `vue-router` 경로로 바뀌었습니다.
-   - `/` 홈, `/login` `/signup`, `/search/step/1~5` `/search/loading` `/search/results` `/search/results/:id` `/search/results/:id/listings` `/search/compare`, `/explore` `/explore/:district` `/explore/:district/:dong`, `/mypage` `/mypage/favorites`
+   - `/` 홈, `/login` `/signup`, `/search/step/1~5` `/search/loading` `/search/results` `/search/results/:id` `/search/results/:id/listings` `/search/compare`, `/explore` `/explore/:district` `/explore/:district/:dong`, `/mypage` `/favorites`
 2. **상태관리**: 전역 state는 Pinia 스토어 4개로 나눴습니다 (`useAuthStore`, `useSearchStore`, `useNeighborhoodStore`, `useMyPageStore`).
 3. **차트**: `recharts`(BarChart, RadarChart)는 React 전용이라 그대로 옮길 수 없어서, 간단한 자체 바 차트(`components/common/MiniBarChart.vue`)와 기존 `ScoreBar.vue`로 대체했습니다. 실제 프로덕션에서는 `vue-chartjs`나 `vue-echarts` 도입을 권장드려요.
-4. **FavoritesPage**: 마이페이지의 "관심 동네" 탭(`SavedNeighborhoodList.vue`)과 내용이 거의 동일해서 별도 페이지로 만들지 않고, GNB의 "관심 동네" 버튼이 `/mypage/favorites`로 이동해 해당 탭이 바로 열리도록 처리했습니다.
+4. **FavoritesPage**: 마이페이지 버튼과 GNB의 "관심 동네" 버튼이 둘 다 `MyPageView`를 가리켜 URL만 다르고 화면은 같아 보이던 문제를 고치면서, 관심 동네를 `/favorites`(`FavoriteNeighborhoodsView.vue`) 전용 페이지로 분리했습니다. 마이페이지에서는 "관심 동네" 탭을 제거했습니다.
 5. **컴포넌트 UI 라이브러리** (`components/ui/*`, shadcn 45종)는 이전에 별도로 변환해드린 `vue-ui-components.zip`에 있고, 이번 변환본에는 포함되어 있지 않습니다. 실제 앱(`App.tsx`)에서 사용되지 않던 컴포넌트라 이 프로젝트는 자체 스타일의 순수 Tailwind 마크업으로 작성됐습니다.
 
 ## 알려진 제약 (1차 변환 기준)
