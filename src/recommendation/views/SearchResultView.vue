@@ -97,10 +97,14 @@ function goDetail(id) {
 function toggleCompare(id) {
   nbhd.toggleCompare(id)
 }
-function toggleSaveWithToast(id) {
+async function toggleSaveWithToast(id) {
   const wasAdded = !mypage.savedNeighborhoods.includes(id)
-  mypage.toggleSavedNeighborhood(id)
-  if (wasAdded) toast.value = '관심 동네에 추가되었습니다.'
+  try {
+    await mypage.toggleSavedNeighborhood(id)
+    if (wasAdded) toast.value = '관심 동네에 추가되었습니다.'
+  } catch (error) {
+    toast.value = '요청을 처리하지 못했어요. 잠시 후 다시 시도해주세요.'
+  }
 }
 function saveCondition(title) {
   mypage.saveCondition({
