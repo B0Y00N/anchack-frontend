@@ -1,5 +1,5 @@
 import { defineStore } from "pinia";
-import { submitUserConditions } from "../../condition/api/userConditions";
+import { submitUserConditions, getConditionRecommendations, recomputeUserCondition } from "../../condition/api/userConditions";
 import { buildUserConditionPayload } from "../../condition/utils/conditionCodes";
 import { getAdminDongsBatch } from "../../region/api/neighborhood";
 
@@ -69,6 +69,60 @@ export const useRecommendationStore = defineStore("recommendation", {
           error.response?.data?.error?.message ||
           error.response?.data?.message ||
           "추천 동네를 불러오지 못했어요. 잠시 후 다시 시도해주세요.";
+      }
+    },
+    // 마이페이지에서 저장한 조건의 "결과 보기"를 눌렀을 때 쓴다. 새로 검색을 돌리는 게
+    // 아니라 그 조건으로 이미 계산해둔 추천 결과를 그대로 다시 받아온다. 응답
+    // (RecommendedDongResponse 배열)의 필드 구성이 submit()의 recommendations[]와 같아서
+    // SearchResultView.vue를 그대로 재사용할 수 있다.
+    async loadSavedRecommendations(conditionId) {
+      this.status = "loading";
+      this.errorMessage = "";
+
+      try {
+        const res = await getConditionRecommendations(conditionId);
+
+        this.conditionId = conditionId;
+        this.recommendations = res.data.data;
+        this.status = "success";
+        persist(this);
+
+        this.fetchDetails();
+      } catch (error) {
+        this.conditionId = null;
+        this.recommendations = [];
+        this.status = "error";
+        this.errorMessage =
+          error.response?.data?.error?.message ||
+          error.response?.data?.message ||
+          "저장된 결과를 불러오지 못했어요. 잠시 후 다시 시도해주세요.";
+      }
+    },
+    // 마이페이지에서 latest=false인 저장한 조건의 "다시 결과보기"를 눌렀을 때 쓴다.
+    // 캐시된 결과를 읽어오는 loadSavedRecommendations()와 달리 실제로 admin_dong 지표
+    // 등을 반영해 추천을 다시 계산한다 - submit()과 같은 응답 형태({conditionId,
+    // recommendations})라 처리 방식도 동일하다.
+    async recompute(conditionId) {
+      this.status = "loading";
+      this.errorMessage = "";
+
+      try {
+        const res = await recomputeUserCondition(conditionId);
+
+        this.conditionId = res.data.data.conditionId;
+        this.recommendations = res.data.data.recommendations;
+        this.status = "success";
+        persist(this);
+
+        this.fetchDetails();
+      } catch (error) {
+        this.conditionId = null;
+        this.recommendations = [];
+        this.status = "error";
+        this.errorMessage =
+          error.response?.data?.error?.message ||
+          error.response?.data?.message ||
+          "결과를 다시 계산하지 못했어요. 잠시 후 다시 시도해주세요.";
       }
     },
     // 추천 목록(최대 5개)의 상세 정보를 한 번에 배치 조회한다. 실패해도 목록 자체는

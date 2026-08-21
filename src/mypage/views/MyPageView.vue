@@ -4,6 +4,7 @@ import { useRouter } from "vue-router";
 
 import { useAuthStore } from "../../user/stores/useAuthStore";
 import { useMyPageStore } from "../stores/useMyPageStore";
+import { useRecommendationStore } from "../../recommendation/stores/useRecommendationStore";
 import { getErrorMessage } from "../../common/api/axios.js";
 
 import TheFooter from "../../common/components/TheFooter.vue";
@@ -18,6 +19,7 @@ const router = useRouter();
 
 const auth = useAuthStore();
 const mypage = useMyPageStore();
+const recommendation = useRecommendationStore();
 
 const userProfile = computed(() => auth.user);
 
@@ -26,6 +28,7 @@ const tab = ref("conditions");
 
 const editingReview = ref(null);
 const pageToast = ref(null);
+const loadingConditionId = ref(null);
 
 // 실제 DB에 저장된 "내가 쓴 리뷰" 목록 (useMyPageStore.fetchMyReviews 결과)
 const myReviews = computed(() => mypage.myReviews);
@@ -34,11 +37,6 @@ const tabs = computed(() => [
   {
     key: "conditions",
     label: "저장한 조건",
-    count: mypage.savedConditions.length,
-  },
-  {
-    key: "results",
-    label: "저장된 결과",
     count: mypage.savedConditions.length,
   },
   {
@@ -59,13 +57,38 @@ function navigate(page) {
   router.push(routeMap[page] || "/");
 }
 
-function deleteCondition(id) {
-  mypage.deleteCondition(id);
+async function deleteCondition(conditionId) {
+  try {
+    await mypage.deleteSavedCondition(conditionId);
+  } catch (error) {
+    console.error("저장한 조건 삭제 실패:", error.response?.data || error);
+    pageToast.value = getErrorMessage(error, "삭제하지 못했어요. 잠시 후 다시 시도해주세요.");
+  }
 }
 
-function loadResult() {
-  // TODO: 검색 조건을 검색 Store에 적용한다.
-  router.push("/search/results");
+// 결과는 조건에 종속적인 값이라 별도 탭 대신, 저장한 조건 카드에서 바로 그 조건의
+// 결과로 넘어간다. latest=true("결과 보기")는 새로 검색을 돌리는 게 아니라 이미
+// 계산해둔 결과를 다시 받아오는 거라(OpenAI 이유 생성 대기 없음) "찾고 있어요" 4단계
+// 온보딩 로딩 화면(/search/loading)을 거치지 않고, 버튼 자체에 로딩 표시만 하고 바로
+// 결과로 넘어간다.
+async function viewResults(conditionId) {
+  loadingConditionId.value = conditionId;
+  await recommendation.loadSavedRecommendations(conditionId);
+  loadingConditionId.value = null;
+
+  if (recommendation.status === "success") {
+    router.push("/search/results");
+  } else {
+    pageToast.value = recommendation.errorMessage || "결과를 불러오지 못했어요. 잠시 후 다시 시도해주세요.";
+  }
+}
+
+// latest=false("다시 결과보기")는 실제로 재계산을 요청하는 거라(POST
+// /user-conditions/{id}/recompute, OpenAI 이유 생성을 다시 거칠 수 있음) submit()과
+// 동일하게 온보딩 로딩 화면을 거친다 - SearchInputView.vue가 recomputeConditionId
+// 쿼리를 보고 recommendation.recompute()를 부른다.
+function recomputeResults(conditionId) {
+  router.push({ path: "/search/loading", query: { recomputeConditionId: conditionId } });
 }
 
 /*
@@ -111,6 +134,7 @@ async function deleteReview(id) {
 
 onMounted(() => {
   mypage.fetchMyReviews();
+  mypage.fetchSavedConditions();
 });
 </script>
 
@@ -146,21 +170,29 @@ onMounted(() => {
     </div>
 
     <div class="max-w-4xl mx-auto px-8 py-8">
-      <SavedConditionList
-        v-if="tab === 'conditions'"
-        mode="conditions"
-        :saved-conditions="mypage.savedConditions"
-        @navigate="navigate"
-        @delete="deleteCondition"
-      />
-
-      <SavedConditionList
-        v-else-if="tab === 'results'"
-        mode="results"
-        :saved-conditions="mypage.savedConditions"
-        @navigate="navigate"
-        @load="loadResult"
-      />
+      <template v-if="tab === 'conditions'">
+        <div v-if="mypage.savedConditionsStatus === 'loading'" class="text-center py-20 text-sm text-muted-foreground">
+          저장한 조건을 불러오는 중이에요...
+        </div>
+        <div v-else-if="mypage.savedConditionsStatus === 'error'" class="text-center py-20">
+          <p class="text-sm text-muted-foreground mb-3">{{ mypage.savedConditionsError }}</p>
+          <button
+            @click="mypage.fetchSavedConditions()"
+            class="text-sm font-semibold text-primary border border-primary/25 rounded-full px-4 py-2 hover:bg-secondary"
+          >
+            다시 시도
+          </button>
+        </div>
+        <SavedConditionList
+          v-else
+          :saved-conditions="mypage.savedConditions"
+          :loading-condition-id="loadingConditionId"
+          @navigate="navigate"
+          @delete="deleteCondition"
+          @view-results="viewResults"
+          @recompute="recomputeResults"
+        />
+      </template>
 
       <template v-else-if="tab === 'reviews'">
         <div v-if="mypage.myReviewsStatus === 'loading'" class="text-center py-20 text-sm text-muted-foreground">

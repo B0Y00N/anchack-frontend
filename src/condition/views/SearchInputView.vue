@@ -36,8 +36,17 @@ function goStep(n) {
 function submit() {
   router.push("/search/loading");
 }
+// 마이페이지에서 "다시 결과보기"(latest=false인 저장 조건 재계산)는
+// /search/loading?recomputeConditionId=1 형태로 여기 들어온다 - 새 조건으로 검색을
+// 다시 돌리는 게 아니라 그 conditionId로 재계산을 요청한다. OpenAI 이유 생성을 다시
+// 거칠 수 있어(submit()과 동일하게) "찾고 있어요" 온보딩 로딩 화면을 그대로 거친다.
 function startSearch() {
-  recommendation.submit(search.appState);
+  const recomputeConditionId = route.query.recomputeConditionId;
+  if (recomputeConditionId) {
+    recommendation.recompute(Number(recomputeConditionId));
+  } else {
+    recommendation.submit(search.appState);
+  }
 }
 watch(isLoading, (loading) => {
   if (loading) startSearch();
@@ -46,6 +55,13 @@ watch(isLoading, (loading) => {
 function onLoadingDone() {
   router.push("/search/results");
 }
+function goBack() {
+  if (route.query.recomputeConditionId) {
+    router.push("/mypage");
+  } else {
+    goStep(5);
+  }
+}
 </script>
 
 <template>
@@ -53,9 +69,10 @@ function onLoadingDone() {
     v-if="isLoading"
     :status="recommendation.status"
     :error-message="recommendation.errorMessage"
+    :back-label="route.query.recomputeConditionId ? '마이페이지로' : '이전 단계로'"
     @done="onLoadingDone"
     @retry="startSearch"
-    @back="goStep(5)"
+    @back="goBack"
   />
 
   <!-- 프로그레스바(SearchProgressBar)를 여기서 딱 한 번만 렌더링한다.
