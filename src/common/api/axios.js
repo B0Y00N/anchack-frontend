@@ -15,15 +15,9 @@ api.interceptors.response.use(
   (res) => res,
   (error) => {
     /*
-     * [수정] 이 TODO가 비어있던 탓에 accessToken이 만료/무효화되어 401이 와도
-     * localStorage의 토큰이 그대로 남아있었다. 그 결과:
-     *  - 다음 요청도 계속 같은 만료 토큰을 실어 보내 계속 401만 반복되고
-     *  - 헤더(TheHeader.vue)는 useAuthStore().isLoggedIn만 보고 "로그인됨" 상태를
-     *    계속 표시해, 사용자 입장에서는 "로그인되어 있는데 리뷰 작성이 안 된다"처럼 보였다.
-     *
-     * 여기서 만료된 토큰을 정리하고, pinia auth 스토어도 즉시 로그아웃 상태로
-     * 동기화한다. 실제 재로그인 이동은 각 화면(ReviewWriteModal 등)에서
-     * 401 응답 메시지를 보고 안내한다.
+     * 401이어도 localStorage 토큰이 안 지워져 만료 토큰으로 계속 요청을
+     * 보내던 문제. 여기서 토큰을 정리하고 auth 스토어도 로그아웃 상태로
+     * 동기화한다. 재로그인 안내는 각 화면에서 처리한다.
      */
     const status = error.response?.status;
 
@@ -45,3 +39,19 @@ api.interceptors.response.use(
 );
 
 export default api;
+
+/*
+ * 백엔드 에러 응답 형태 2가지:
+ * 1) 일반 에러: { success:false, data:null, error:{ code, message } }
+ * 2) 인증 필터가 직접 내려주는 401: { message: "..." }
+ *
+ * data?.message만 읽으면 1번 형식(400/403/404 등)에서 항상 undefined가
+ * 되어 실제 에러 사유 대신 일반 안내 문구만 보이던 문제. 두 형태를 모두 확인한다.
+ */
+export function getErrorMessage(error, fallback) {
+  return (
+    error?.response?.data?.error?.message ||
+    error?.response?.data?.message ||
+    fallback
+  );
+}

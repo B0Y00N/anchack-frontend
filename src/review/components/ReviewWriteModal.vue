@@ -4,6 +4,7 @@ import { Check, X } from "lucide-vue-next";
 import StarInput from "../../common/components/StarInput.vue";
 import { REVIEW_CATEGORIES, CATEGORY_LABEL_TO_CODE } from "../constants.js";
 import { createReview } from "../api/review.js";
+import { getErrorMessage } from "../../common/api/axios.js";
 
 const props = defineProps({
   adminDongId: {
@@ -131,8 +132,13 @@ const handleSubmit = async () => {
     );
 
     const status = error.response?.status;
-    const responseMessage =
-      error.response?.data?.message;
+    /*
+     * [수정] error.response?.data?.message만 읽으면 대부분의 400/404 에러(예:
+     * "리뷰 내용은 최소 20자 이상 입력해야 합니다.")에서 항상 undefined가 되어
+     * 아래 fallback 문구만 보였다. common/api/axios.js의 getErrorMessage로
+     * 백엔드 응답의 두 형태({error:{message}} / {message})를 모두 확인한다.
+     */
+    const responseMessage = getErrorMessage(error, "");
 
     if (status === 401) {
       submitError.value =
@@ -158,24 +164,23 @@ const handleSubmit = async () => {
 
 <template>
   <Teleport to="body">
-    <!-- 화면 전체 모달 영역 -->
+    <!--
+      [수정] 기존에는 화면 왼쪽에 붙는 전체 높이 슬라이드 패널(absolute inset-y-0 left-0)
+      형태였는데, 앱의 다른 모든 모달(AddressSearchModal, SaveConditionModal,
+      ReviewEditModal 등)은 화면 정중앙에 뜨는 카드 형태를 쓰고 있어서 리뷰 작성
+      모달만 화면 왼쪽 구석에 붙어 보이는 문제가 있었다. 다른 모달과 동일하게
+      "fixed inset-0 + flex items-center justify-center"로 정중앙에 뜨도록 통일한다.
+    -->
     <div
-      class="fixed inset-0 z-[9999]"
+      class="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
       role="dialog"
       aria-modal="true"
       aria-labelledby="review-modal-title"
+      @click="emit('close')"
     >
-      <!-- 배경 오버레이 -->
-      <button
-        type="button"
-        class="absolute inset-0 h-full w-full cursor-default bg-black/40"
-        aria-label="리뷰 작성 창 닫기"
-        @click="emit('close')"
-      />
-
       <!-- 리뷰 작성 패널 -->
       <section
-        class="absolute inset-y-0 left-0 flex w-full max-w-[574px] flex-col overflow-hidden bg-background shadow-2xl"
+        class="flex w-full max-w-[574px] max-h-[85vh] flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-2xl"
         @click.stop
       >
         <!-- 헤더 -->

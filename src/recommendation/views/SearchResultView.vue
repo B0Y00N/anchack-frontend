@@ -14,6 +14,7 @@ import { useRecommendationStore } from '@/recommendation/stores/useRecommendatio
 import { useNeighborhoodStore } from '@/region/stores/useNeighborhoodStore.js'
 import { useMyPageStore } from '@/mypage/stores/useMyPageStore.js'
 import { resolveLineColor } from '@/recommendation/utils/lineColors.js'
+import { saveUserCondition, getSavedUserConditions } from '@/condition/api/userConditions.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -84,6 +85,7 @@ const showSaveModal = ref(false)
 const showSavedListModal = ref(false)
 const conditionSaved = ref(false)
 const toast = ref(null)
+const savedConditionsList = ref([])
 
 const selectedId = computed(() => (route.params.id != null ? Number(route.params.id) : null))
 const selectedNeighborhood = computed(() => neighborhoods.value.find((n) => n.id === selectedId.value))
@@ -97,20 +99,32 @@ function goDetail(id) {
 function toggleCompare(id) {
   nbhd.toggleCompare(id)
 }
-function toggleSaveWithToast(id) {
+async function toggleSaveWithToast(id) {
   const wasAdded = !mypage.savedNeighborhoods.includes(id)
-  mypage.toggleSavedNeighborhood(id)
-  if (wasAdded) toast.value = '관심 동네에 추가되었습니다.'
+  try {
+    await mypage.toggleSavedNeighborhood(id)
+    if (wasAdded) toast.value = '관심 동네에 추가되었습니다.'
+  } catch (error) {
+    toast.value = '요청을 처리하지 못했어요. 잠시 후 다시 시도해주세요.'
+  }
 }
-function saveCondition(title) {
-  mypage.saveCondition({
-    id: Date.now(),
-    title,
-    state: search.appState,
-    date: new Date().toLocaleDateString('ko-KR').replace(/\. /g, '.').slice(0, -1),
-  })
-  showSaveModal.value = false
-  conditionSaved.value = true
+async function saveCondition(title) {
+  try {
+    await saveUserCondition(recommendation.conditionId, title)
+    showSaveModal.value = false
+    conditionSaved.value = true
+  } catch (error) {
+    toast.value = '조건을 저장하지 못했어요. 잠시 후 다시 시도해주세요.'
+  }
+}
+async function openSavedListModal() {
+  showSavedListModal.value = true
+  try {
+    const res = await getSavedUserConditions()
+    savedConditionsList.value = res.data.data
+  } catch (error) {
+    savedConditionsList.value = []
+  }
 }
 function goListings() {
   nbhd.listingsFrom = 'detail'
@@ -125,7 +139,7 @@ function goListings() {
   <transition name="modal-fade">
     <SavedConditionsListModal
       v-if="showSavedListModal"
-      :saved-conditions="mypage.savedConditions"
+      :saved-conditions="savedConditionsList"
       @close="showSavedListModal = false"
     />
   </transition>
@@ -140,12 +154,14 @@ function goListings() {
         :compare-list="nbhd.compareList"
         :saved-neighborhoods="mypage.savedNeighborhoods"
         :condition-saved="conditionSaved"
+        :rent-type="search.appState.rentType"
+        :details-status="recommendation.detailsStatus"
         @detail="goDetail"
         @compare="toggleCompare"
         @toggle-save="toggleSaveWithToast"
         @go-compare="router.push('/search/compare')"
         @save-condition-click="showSaveModal = true"
-        @show-saved-list="showSavedListModal = true"
+        @show-saved-list="openSavedListModal"
       />
       <div class="flex-1 min-w-0 relative h-full p-4 bg-background">
         <div
