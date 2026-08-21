@@ -1,67 +1,24 @@
-<script>
-import { getAdminDongPlaces } from '@/region/api/neighborhood.js'
-
-// 진짜 모듈 스코프 캐시. <script setup> 최상단에 두면 컴포넌트 인스턴스(=탭 하나)가
-// 새로 마운트될 때마다 다시 실행돼 캐시가 매번 초기화되므로, 인스턴스와 무관하게
-// 딱 한 번만 평가되는 일반 <script> 블록에 둬야 탭을 오가도(통근<->치안<->생활 인프라)
-// 같은 동은 재요청되지 않는다.
-const placesCache = new Map() // adminDongId -> Promise<Place[]>
-function fetchAllPlaces(adminDongId) {
-  if (!placesCache.has(adminDongId)) {
-    const promise = getAdminDongPlaces(adminDongId).then((res) => res.data.data)
-    // 실패를 그대로 캐싱하면 이후 같은 동을 다시 열어도 재시도가 안 된다.
-    // 캐시에는 안 남기고, 호출부(fetchAllPlaces를 부른 쪽)에서 reject를 그대로 받게 둔다.
-    promise.catch(() => placesCache.delete(adminDongId))
-    placesCache.set(adminDongId, promise)
-  }
-  return placesCache.get(adminDongId)
-}
-</script>
-
 <script setup>
 import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { MAP_MARKER_SETS } from '@/common/utils/mockData.js'
 import { loadSeoulGeojson } from '@/common/utils/loadSeoulGeojson.js'
 import { loadKakaoMap } from '@/common/utils/loadKakaoMap.js'
+import { useMapLoadState } from '@/common/composables/useMapLoadState.js'
 
 const props = defineProps({
   dong: { type: String, required: true },
-  adminDongId: { type: Number, required: true },
   hash: { type: Number, required: true },
   mode: { type: String, required: true }, // "infra" | "safety" | "transit"
 })
 
 const modeLabel = { infra: '생활 인프라', safety: '치안 시설', transit: '교통 시설' }
+const set = computed(() => MAP_MARKER_SETS[props.mode])
 
-// 화면 카테고리 <-> places.category(DB enum) 매핑 (API_USER_CONDITIONS_REVISION_REQUEST.md P2 참고).
-// anonymous: true인 카테고리는 name이 사람이 읽을 만한 값이 아니라(예: CCTV 관리번호)
-// 마커 라벨에 장소명 대신 카테고리명을 쓴다.
-const CATEGORY_CONFIG = {
-  infra: [
-    { label: '편의점', color: '#52B37A', emoji: '🏪', dbCategories: ['CONVENIENCE_STORE'] },
-    { label: '카페/음식점', color: '#C47C3A', emoji: '☕', dbCategories: ['CAFE', 'RESTAURANT'] },
-    { label: '병원/약국', color: '#E05555', emoji: '🏥', dbCategories: ['HOSPITAL', 'PHARMACY'] },
-    { label: '헬스장', color: '#2D7A4F', emoji: '🏋️', dbCategories: ['GYM'] },
-    { label: '은행', color: '#7B68A6', emoji: '🏦', dbCategories: ['BANK'] },
-    { label: '공원', color: '#4A9E6B', emoji: '🌳', dbCategories: ['PARK'] },
-    { label: '백화점', color: '#B03A8C', emoji: '🏬', dbCategories: ['DEPARTMENT_STORE'] },
-    { label: '대형마트', color: '#D97706', emoji: '🛒', dbCategories: ['MART'] },
-  ],
-  safety: [
-    { label: 'CCTV', color: '#546E7A', emoji: '📷', dbCategories: ['CCTV'], anonymous: true },
-    { label: '가로등', color: '#F59E0B', emoji: '💡', dbCategories: ['STREET_LIGHT'], anonymous: true },
-    { label: '경찰서/지구대', color: '#1565C0', emoji: '🚔', dbCategories: ['POLICE'] },
-    { label: '안전비상벨', color: '#E53935', emoji: '🚨', dbCategories: ['SAFETY_BELL'], anonymous: true },
-  ],
-  transit: [
-    { label: '지하철역', color: '#1976D2', emoji: '🚇', dbCategories: ['SUBWAY_STATION'] },
-    { label: '버스정류장', color: '#E64A19', emoji: '🚌', dbCategories: ['BUS_STOP'] },
-  ],
-}
-// CCTV처럼 한 동에 몇 백 개씩 있는 카테고리를 다 찍으면 지도가 못 알아볼 정도로 빽빽해져서
-// 카테고리당 렌더링 개수를 여기서 제한한다(서버는 전체를 다 내려줌).
-const MAX_MARKERS_PER_CATEGORY = 30
-
-const set = computed(() => CATEGORY_CONFIG[props.mode])
+// 인프라/교통은 카카오맵 실제 장소 데이터를 사용하고,
+// 치안은 경찰서/지구대만 실제 데이터이고 CCTV·가로등·안전비상벨은 추정치라 문구를 다르게 표시
+const dataBadgeLabel = computed(() =>
+  props.mode === 'safety' ? '일부 실제 데이터 · 일부 추정' : '카카오맵 실제 장소 데이터',
+)
 
 const active = ref(new Set(set.value.map((c) => c.label)))
 function toggleCat(label) {
@@ -71,44 +28,68 @@ function toggleCat(label) {
   active.value = next
 }
 
-// 지도/geojson/장소 데이터가 준비되기 전엔 빈 화면 대신 로딩 표시를 보여준다
-const isLoading = ref(true)
-const loadError = ref(false)
-const placesError = ref(false)
+// 지도/geojson이 준비되기 전엔 빈 화면 대신 로딩 표시를 보여준다
+// (ResultMap.vue / DistrictMap.vue와 동일한 공용 컴포저블 사용)
+const { isLoading, loadError, markLoaded, markError } = useMapLoadState()
+
+// dong/mode/hash가 같으면 항상 같은 마커 배치가 나오도록 하는 시드 기반 난수
+function sr(a, b) {
+  const x = Math.sin(a * 317 + b * 97 + props.hash * 53) * 43758.5453
+  return x - Math.floor(x)
+}
 
 const mapElId = `infra-map-${Math.random().toString(36).slice(2)}`
 
+// 카테고리별로 실제 카카오맵 장소 데이터를 조회하기 위한 매핑.
+// 값은 검색 조건의 배열이다 — "카페/음식점"처럼 이름이 복합인 카테고리는
+// 하위 유형 각각을 따로 검색해서 합쳐야 실제로 카페와 음식점이 둘 다 나온다.
+// (예전엔 검색 조건을 1개만 넣어서, 카페/음식점은 카페만, 병원/약국은 병원만 조회되던 버그가 있었다)
+// code가 있으면 카카오 장소 카테고리 코드로 검색하고, keyword만 있으면 키워드 검색을 사용한다.
+// CCTV·가로등·안전비상벨처럼 카카오에 업체/장소로 등록되지 않는 공공시설은
+// 실제 장소 데이터가 없으므로 매핑에서 제외하고, 기존 추정(모의) 배치를 그대로 사용한다.
+const CATEGORY_SEARCH_TERM = {
+  '편의점': [{ code: 'CS2' }],
+  '카페/음식점': [{ code: 'FD6' }, { code: 'CE7' }],
+  '병원/약국': [{ code: 'HP8' }, { code: 'PM9' }],
+  '헬스장': [{ keyword: '헬스장' }],
+  '은행': [{ code: 'BK9' }],
+  '공원': [{ keyword: '공원' }],
+  '백화점': [{ keyword: '백화점' }],
+  '대형마트': [{ code: 'MT1' }],
+  '경찰서/지구대': [{ keyword: '경찰서' }, { keyword: '지구대' }],
+  '지하철역': [{ code: 'SW8' }],
+  '버스정류장': [{ keyword: '버스정류장' }],
+  '따릉이': [{ keyword: '따릉이 대여소' }],
+  '택시승강장': [{ keyword: '택시승강장' }],
+}
+const MAX_PER_CATEGORY = 5
+
+// Places API 검색이 ERROR(네트워크 문제 등)로 실패한 카테고리 라벨을 담아둔다.
+// ZERO_RESULT(그냥 결과 없음)는 정상 상태라 여기 안 들어간다 — 이 목록에 있는
+// 카테고리에만 "다시 시도" 버튼이 붙은 오류 안내를 보여준다.
+const categorySearchErrors = ref(new Set())
+
 let kakaoMapInstance = null
+let placesService = null
+let requestToken = 0
+// 카테고리 라벨 -> 그 카테고리의 최신 요청 버전 번호.
+// requestToken 하나만으로는 "다시 시도" 버튼을 빠르게 두 번 눌렀을 때
+// 먼저 시작한 요청도 여전히 유효한 것으로 취급되어 마커가 중복 생성된다.
+// 카테고리별로 따로 버전을 매겨, 그 카테고리의 가장 최근 요청만 결과를 반영하게 한다.
+let categoryRequestTokens = {}
 let dongBoundsMap = {}
 let dongPathsMap = {}
 let boundaryPolygon = null
-let overlays = []
+// 카테고리 라벨 -> 그 카테고리가 그린 오버레이 배열. 카테고리별로 추적해야
+// "다시 시도" 시 그 카테고리 마커만 지우고 새로 그릴 수 있다 (전체를 지우면
+// 다른 카테고리 마커까지 깜빡이며 다시 그려져야 해서 비효율적).
+let overlaysByCategory = {}
 let geoLoaded = false
 
-const allPlaces = ref([])
-
 // 컴포넌트가 이미 언마운트된 뒤에 도착하는 비동기 콜백(SDK 로드, geojson fetch,
-// nextTick, places 조회 결과)이 사라진 컨테이너에 지도를 다시 붙이거나
+// nextTick, Places 검색 결과)이 사라진 컨테이너에 지도를 다시 붙이거나
 // 오버레이를 새로 그리는 것을 막기 위한 플래그.
 let disposed = false
-
-// adminDongId가 바뀔 수 있는 채로 컴포넌트 인스턴스가 재사용되는 경우(상세 페이지가
-// key 없이 n만 바뀌며 재사용될 때)가 있어서, 응답이 도착한 시점에도 여전히 같은 동을
-// 보고 있는 요청인지 확인한 뒤에만 화면에 반영한다(늦게 온 이전 동 응답이 최신 화면을
-// 덮어쓰는 것을 방지).
-function loadPlacesFor(adminDongId) {
-  placesError.value = false
-  fetchAllPlaces(adminDongId)
-    .then((places) => {
-      if (disposed || props.adminDongId !== adminDongId) return
-      allPlaces.value = places
-      if (kakaoMapInstance) renderMarkers()
-    })
-    .catch(() => {
-      if (disposed || props.adminDongId !== adminDongId) return
-      placesError.value = true
-    })
-}
 
 onMounted(() => {
   // 지도 컴포넌트마다 각자 스크립트를 추가하면 중복 로드로 간헐적 실패가
@@ -121,17 +102,15 @@ onMounted(() => {
     .catch((err) => {
       if (disposed) return
       console.error('카카오맵 스크립트 로드 실패', err)
-      isLoading.value = false
-      loadError.value = true
+      markError()
     })
-
-  loadPlacesFor(props.adminDongId)
 })
 
 onBeforeUnmount(() => {
   disposed = true
-  overlays.forEach((o) => o.setMap(null))
-  overlays = []
+  requestToken += 1 // 이미 나가있는 Places 검색 응답을 전부 낡은 것으로 무효화
+  Object.values(overlaysByCategory).forEach((list) => list.forEach((o) => o.setMap(null)))
+  overlaysByCategory = {}
   if (boundaryPolygon) {
     boundaryPolygon.setMap(null)
     boundaryPolygon = null
@@ -154,6 +133,10 @@ function initMap() {
   })
   kakaoMapInstance = map
 
+  if (window.kakao.maps.services && !placesService) {
+    placesService = new window.kakao.maps.services.Places()
+  }
+
   if (geoLoaded) {
     focusOnCurrentDong()
     return
@@ -162,7 +145,11 @@ function initMap() {
   loadSeoulGeojson()
     .then((geojson) => {
       if (disposed) return
-      if (!geojson || !geojson.features) return
+      if (!geojson || !Array.isArray(geojson.features) || geojson.features.length === 0) {
+        console.error('GeoJSON 데이터가 비어 있거나 잘못되었습니다.')
+        markError()
+        return
+      }
 
       geojson.features.forEach((feature) => {
         const fullName = feature.properties.adm_nm || ''
@@ -202,8 +189,7 @@ function initMap() {
     .catch((err) => {
       if (disposed) return
       console.error('GeoJSON 로드 오류:', err)
-      isLoading.value = false
-      loadError.value = true
+      markError()
     })
 }
 
@@ -222,49 +208,221 @@ function focusOnCurrentDong() {
 
     const key = resolveDongKey(props.dong)
     const bounds = dongBoundsMap[key]
+    const paths = dongPathsMap[key]
 
-    if (bounds && !bounds.isEmpty()) {
-      kakaoMapInstance.setBounds(bounds, -39.78, -39.78, -39.78, -39.78)
-
-      // 너무 과도하게 확대되는 것을 방지하기 위해 레벨이 너무 낮으면(확대 과다) 5로 고정
-      const currentLevel = kakaoMapInstance.getLevel()
-      if (currentLevel < 5) {
-        kakaoMapInstance.setLevel(6)
-      }
-
-      boundaryPolygon = new window.kakao.maps.Polygon({
-        path: dongPathsMap[key],
-        strokeWeight: 3,
-        strokeColor: '#2D7A4F',
-        strokeOpacity: 0.9,
-        fillColor: '#2D7A4F',
-        fillOpacity: 0.12,
-      })
-      boundaryPolygon.setMap(kakaoMapInstance)
+    // geojson 자체는 정상 로드됐어도, 요청받은 동(props.dong)의 경계가
+    // 그 안에 없을 수 있다. 이 경우 지도는 텅 빈 채로 markLoaded()가 불려
+    // 사용자에게는 "정상 로드된 빈 지도"처럼 보이게 된다 — 조용히 넘어가지 않고
+    // 명확한 오류로 처리한다.
+    if (!bounds || bounds.isEmpty() || !paths?.length) {
+      console.error(`행정동 경계를 찾을 수 없습니다: ${props.dong}`)
+      markError()
+      return
     }
 
+    kakaoMapInstance.setBounds(bounds, -39.78, -39.78, -39.78, -39.78)
+
+    // 너무 과도하게 확대되는 것을 방지하기 위해 레벨이 너무 낮으면(확대 과다) 5로 고정
+    const currentLevel = kakaoMapInstance.getLevel()
+    if (currentLevel < 5) {
+      kakaoMapInstance.setLevel(6)
+    }
+
+    boundaryPolygon = new window.kakao.maps.Polygon({
+      path: paths,
+      strokeWeight: 3,
+      strokeColor: '#2D7A4F',
+      strokeOpacity: 0.9,
+      fillColor: '#2D7A4F',
+      fillOpacity: 0.12,
+    })
+    boundaryPolygon.setMap(kakaoMapInstance)
+
     renderMarkers()
-    isLoading.value = false
+    markLoaded()
   })
 }
 
 function renderMarkers() {
-  overlays.forEach((o) => o.setMap(null))
-  overlays = []
+  Object.values(overlaysByCategory).forEach((list) => list.forEach((o) => o.setMap(null)))
+  overlaysByCategory = {}
+  categorySearchErrors.value = new Set()
   if (!kakaoMapInstance) return
 
-  set.value.forEach((cat) => {
-    if (!active.value.has(cat.label)) return
+  const key = resolveDongKey(props.dong)
+  const bounds = dongBoundsMap[key]
+  if (!bounds || bounds.isEmpty()) return
 
-    allPlaces.value
-      .filter((p) => cat.dbCategories.includes(p.category))
-      .slice(0, MAX_MARKERS_PER_CATEGORY)
-      .forEach((place) => {
-        const overlay = createMarkerOverlay(place.lat, place.lng, cat, cat.anonymous ? null : place.name)
-        overlay.setMap(kakaoMapInstance)
-        overlays.push(overlay)
-      })
+  // 동/카테고리가 바뀌는 도중에 이전 검색 결과가 뒤늦게 그려지지 않도록 토큰으로 구분
+  requestToken += 1
+  const myToken = requestToken
+
+  let seed = 0
+  set.value.forEach((cat) => {
+    if (!active.value.has(cat.label)) {
+      seed += 20
+      return
+    }
+    renderCategoryMarkers(cat, key, bounds, myToken, seed)
+    seed += 20
   })
+}
+
+// 카테고리 하나를 그린다. 기존에 그려져 있던 그 카테고리의 오버레이는
+// (일반 렌더링이든 재시도든) 먼저 지우고 새로 그려서 중복이 남지 않게 한다.
+function renderCategoryMarkers(cat, key, bounds, token, seed = 0) {
+  // "다시 시도"를 빠르게 두 번 누르면, 먼저 시작한 요청도 requestToken은 그대로라
+  // 여전히 유효한 것으로 취급되어 결과가 두 번 반영될 수 있다. 카테고리별로
+  // 별도 버전을 매겨, 그 카테고리의 가장 최근 요청 결과만 반영되게 한다.
+  const categoryToken = (categoryRequestTokens[cat.label] ?? 0) + 1
+  categoryRequestTokens[cat.label] = categoryToken
+
+  clearCategoryOverlays(cat.label)
+
+  const searchInfos = CATEGORY_SEARCH_TERM[cat.label]
+  if (searchInfos && placesService) {
+    searchRealPlaces(cat, key, searchInfos, bounds, token, categoryToken)
+  } else {
+    renderMockMarkersForCategory(cat, key, bounds, seed)
+  }
+}
+
+function clearCategoryOverlays(label) {
+  const existing = overlaysByCategory[label]
+  if (existing) {
+    existing.forEach((o) => o.setMap(null))
+  }
+  overlaysByCategory[label] = []
+}
+
+// 오류로 실패했던 카테고리 하나만 다시 검색한다 ("다시 시도" 버튼에서 호출).
+// 다른 카테고리의 진행 중인 검색에는 영향을 주지 않도록 requestToken은 새로 올리지 않는다
+// (카테고리별 중복 방지는 renderCategoryMarkers가 매기는 categoryToken이 담당한다).
+function retryCategorySearch(label) {
+  if (!kakaoMapInstance) return
+  const cat = set.value.find((c) => c.label === label)
+  if (!cat) return
+
+  const key = resolveDongKey(props.dong)
+  const bounds = dongBoundsMap[key]
+  if (!bounds || bounds.isEmpty()) return
+
+  renderCategoryMarkers(cat, key, bounds, requestToken)
+}
+
+// ray-casting 알고리즘으로 좌표가 동 경계 폴리곤 안에 있는지 판별한다.
+// bounds(사각형)만으로 거르면, 사각형 안이지만 실제 동 경계 밖인 장소가
+// 섞여 나올 수 있어 실제 폴리곤(dongPathsMap) 기준으로 한 번 더 걸러낸다.
+function isPointInDongPolygon(lat, lng, key) {
+  const paths = dongPathsMap[key]
+  if (!paths || paths.length === 0) return true // 폴리곤 정보가 없으면 걸러내지 않는다(안전한 폴백)
+  return paths.some((ring) => isPointInRing(lat, lng, ring))
+}
+
+function isPointInRing(lat, lng, ring) {
+  let inside = false
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const yi = ring[i].getLat()
+    const xi = ring[i].getLng()
+    const yj = ring[j].getLat()
+    const xj = ring[j].getLng()
+    const intersects = yi > lat !== yj > lat && lng < ((xj - xi) * (lat - yi)) / (yj - yi) + xi
+    if (intersects) inside = !inside
+  }
+  return inside
+}
+
+// 카카오맵 실제 장소 데이터(Places API)로 카테고리별 위치를 찾아 마커로 표시.
+// searchInfos는 검색 조건 배열이다 — "카페/음식점"처럼 하위 유형이 여러 개인
+// 카테고리는 각 조건을 따로 검색한 뒤 장소 id 기준으로 중복 제거해서 합친다.
+function searchRealPlaces(cat, key, searchInfos, bounds, token, categoryToken) {
+  const options = { bounds, size: MAX_PER_CATEGORY }
+  const collected = new Map() // place.id -> place (중복 제거용)
+  let remaining = searchInfos.length
+  let hadError = false // ERROR 응답을 하나라도 받았는지 (하나라도 있으면 부분 실패로 안내한다)
+
+  // 언마운트/동 전환(requestToken)뿐 아니라, 같은 카테고리의 더 최신 요청이
+  // 이미 시작됐는지(categoryToken)까지 같이 확인해야 "다시 시도" 연타로 인한
+  // 중복 렌더링을 막을 수 있다.
+  const isCurrentRequest = () =>
+    !disposed && token === requestToken && categoryToken === categoryRequestTokens[cat.label]
+
+  const finishIfDone = () => {
+    if (remaining > 0) return
+    if (!isCurrentRequest()) return
+
+    // ERROR가 하나라도 있었으면, 다른 하위 유형이 성공해서 일부 결과가
+    // 나왔더라도 사용자에게 "일부 실패"를 알려준다 (조용히 숨기지 않는다).
+    const nextErrors = new Set(categorySearchErrors.value)
+    if (hadError) {
+      nextErrors.add(cat.label)
+    } else {
+      nextErrors.delete(cat.label)
+    }
+    categorySearchErrors.value = nextErrors
+
+    const inBounds = [...collected.values()].filter((place) =>
+      isPointInDongPolygon(parseFloat(place.y), parseFloat(place.x), key),
+    )
+
+    inBounds.slice(0, MAX_PER_CATEGORY).forEach((place) => {
+      const overlay = createMarkerOverlay(
+        parseFloat(place.y),
+        parseFloat(place.x),
+        cat,
+        place.place_name,
+      )
+      overlay.setMap(kakaoMapInstance)
+      overlaysByCategory[cat.label].push(overlay)
+    })
+  }
+
+  searchInfos.forEach((searchInfo) => {
+    const handleResult = (data, status) => {
+      if (!isCurrentRequest()) return // 언마운트됐거나 오래된(카테고리 기준으로도) 요청 결과는 무시
+
+      if (status === window.kakao.maps.services.Status.ERROR) {
+        hadError = true
+        console.error(`${cat.label} 장소 검색 실패`)
+      } else if (Array.isArray(data)) {
+        // OK 또는 ZERO_RESULT는 둘 다 정상 응답이다.
+        data.forEach((place) => {
+          if (!collected.has(place.id)) collected.set(place.id, place)
+        })
+      }
+
+      remaining -= 1
+      finishIfDone()
+    }
+
+    if (searchInfo.code) {
+      placesService.categorySearch(searchInfo.code, handleResult, options)
+    } else {
+      placesService.keywordSearch(searchInfo.keyword, handleResult, options)
+    }
+  })
+}
+
+// 카카오에 업체/장소로 등록되지 않는 공공시설(CCTV, 가로등, 안전비상벨)은
+// 실제 위치 데이터를 가져올 수 없어 범위 안에 추정 배치한다. 사각형(bounds)
+// 안에서만 뽑으면 오목한 경계나 MultiPolygon 동에서는 실제 동 밖에 찍힐 수
+// 있어, 실제 폴리곤(isPointInDongPolygon) 안에 들어오는 좌표만 채택한다.
+function renderMockMarkersForCategory(cat, key, bounds, seed) {
+  const sw = bounds.getSouthWest()
+  const ne = bounds.getNorthEast()
+  const count = Math.max(1, cat.baseCount + Math.floor(sr(seed, 7) * 2) - 1)
+
+  let placed = 0
+  for (let attempt = 0; placed < count && attempt < count * 20; attempt++) {
+    const lat = sw.getLat() + sr(seed + attempt, 1) * (ne.getLat() - sw.getLat())
+    const lng = sw.getLng() + sr(seed + attempt, 2) * (ne.getLng() - sw.getLng())
+    if (!isPointInDongPolygon(lat, lng, key)) continue
+
+    const overlay = createMarkerOverlay(lat, lng, cat)
+    overlay.setMap(kakaoMapInstance)
+    overlaysByCategory[cat.label].push(overlay)
+    placed += 1
+  }
 }
 
 function truncateLabel(text, max = 12) {
@@ -278,8 +436,8 @@ function createMarkerOverlay(lat, lng, cat, placeName) {
   el.style.setProperty('--pin-color', cat.color)
   const labelText = placeName ? truncateLabel(placeName) : cat.label
 
-  // placeName은 외부 데이터 소스(공공데이터 등)에서 온 값이라 신뢰할 수 없는 입력이다.
-  // innerHTML 대신 textContent로 넣어 XSS를 막는다.
+  // placeName은 카카오 Places API 응답값(업주가 직접 등록하는 장소명)이라
+  // 신뢰할 수 없는 외부 입력이다. innerHTML 대신 textContent로 넣어 XSS를 막는다.
   const label = document.createElement('span')
   label.className = 'infra-pin-label'
   label.textContent = `${cat.emoji ?? ''} ${labelText}`
@@ -298,10 +456,9 @@ function createMarkerOverlay(lat, lng, cat, placeName) {
 }
 
 watch(
-  () => [props.dong, props.adminDongId, props.hash, props.mode],
+  () => [props.dong, props.hash, props.mode],
   () => {
     active.value = new Set(set.value.map((c) => c.label))
-    loadPlacesFor(props.adminDongId)
     if (kakaoMapInstance) focusOnCurrentDong()
   },
 )
@@ -317,8 +474,15 @@ watch(active, () => {
       <h4 class="font-semibold text-foreground text-sm">
         {{ dong }} 주변 {{ modeLabel[mode] }} 지도
       </h4>
-      <span class="text-xs text-muted-foreground bg-muted px-2.5 py-1 rounded-full">실제 장소 데이터</span>
+      <span class="text-xs text-muted-foreground bg-muted px-2.5 py-1 rounded-full">{{
+        dataBadgeLabel
+      }}</span>
     </div>
+
+    <p v-if="mode === 'safety'" class="px-5 pt-2 text-[10px] text-muted-foreground">
+      경찰서/지구대는 실제 위치를 표시하며, CCTV·가로등·안전비상벨은 공개된 장소 데이터가 없어 범위
+      내 추정 위치로 표시됩니다.
+    </p>
 
     <div class="px-5 py-3 border-b border-border/50 flex flex-wrap gap-2">
       <button
@@ -340,17 +504,27 @@ watch(active, () => {
       </button>
     </div>
 
+    <!-- Places 검색이 ERROR로 실패한 카테고리에만 재시도 안내를 보여준다.
+         (단순 결과 없음은 정상이라 여기 안 뜬다) -->
     <div
-      v-if="placesError"
-      class="px-5 py-2.5 border-b border-amber-200 bg-amber-50 flex items-center justify-between gap-3"
+      v-if="categorySearchErrors.size > 0"
+      class="px-5 py-2 border-b border-border/50 flex flex-wrap gap-2"
     >
-      <p class="text-xs text-amber-800">장소 정보를 불러오지 못했어요.</p>
-      <button
-        @click="loadPlacesFor(adminDongId)"
-        class="text-xs font-semibold text-amber-800 underline flex-shrink-0"
+      <div
+        v-for="label in categorySearchErrors"
+        :key="label"
+        role="alert"
+        class="flex items-center gap-2 text-[11px] text-red-600 bg-red-50 border border-red-200 rounded-full pl-2.5 pr-1.5 py-1"
       >
-        다시 시도
-      </button>
+        <span>{{ label }} 검색에 실패했어요</span>
+        <button
+          type="button"
+          @click="retryCategorySearch(label)"
+          class="font-semibold underline decoration-dotted underline-offset-2 px-1"
+        >
+          다시 시도
+        </button>
+      </div>
     </div>
 
     <div class="relative">
