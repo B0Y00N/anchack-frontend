@@ -5,6 +5,7 @@ import { Loader2, Check, AlertCircle } from "lucide-vue-next";
 const props = defineProps({
   status: { type: String, default: "loading" }, // idle | loading | success | error
   errorMessage: { type: String, default: "" },
+  backLabel: { type: String, default: "이전 단계로" },
 });
 const emit = defineEmits(["done", "retry", "back"]);
 
@@ -39,7 +40,7 @@ watch([progress, () => props.status], ([p, status]) => {
       <p class="text-sm font-semibold text-foreground mb-1">동네를 찾지 못했어요</p>
       <p class="text-sm text-muted-foreground mb-6">{{ errorMessage }}</p>
       <div class="flex justify-center gap-2.5">
-        <button @click="emit('back')" class="px-5 py-2.5 rounded-full text-sm font-semibold text-muted-foreground border border-border hover:bg-secondary">이전 단계로</button>
+        <button @click="emit('back')" class="px-5 py-2.5 rounded-full text-sm font-semibold text-muted-foreground border border-border hover:bg-secondary">{{ backLabel }}</button>
         <button @click="emit('retry')" class="px-5 py-2.5 rounded-full text-sm font-semibold bg-primary text-primary-foreground hover:bg-primary/90">다시 시도</button>
       </div>
     </div>

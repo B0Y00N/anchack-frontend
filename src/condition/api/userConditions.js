@@ -11,3 +11,20 @@ export const saveUserCondition = (conditionId, title) => api.put(`/user-conditio
 
 // 로그인 사용자가 저장(is_saved=true)한 조건 목록을 최신순으로 반환.
 export const getSavedUserConditions = () => api.get("/user-conditions/saved");
+
+// 조건을 "저장 안 함"으로 되돌린다(is_saved=false). save API와 같은 URL, DELETE만 다름.
+export const deleteSavedCondition = (conditionId) => api.delete(`/user-conditions/${conditionId}/save`);
+
+// 저장된 조건으로 새로 검색을 돌리지 않고, 그때 계산해둔 추천 결과를 그대로 다시 받아온다.
+// 응답의 recommendations 항목 구성(adminDongId/guName/dongName/lat/lng/totalScore/
+// dataCoverageRate/rank/commuteTime/transferCount/route/transportType/lineNum/
+// vehicleType/walkMin/transitMin/recommendationReason/caution)이 POST /user-conditions의
+// recommendations[]와 동일해서, SearchResultView.vue가 그대로 재사용할 수 있다.
+export const getConditionRecommendations = (conditionId) => api.get(`/user-conditions/${conditionId}/recommendations`);
+
+// 저장된 조건이 latest=false(admin_dong 지표 등이 갱신돼 결과가 최신이 아닐 수 있음)일 때
+// 그 조건으로 추천을 다시 계산한다. 응답이 POST /user-conditions와 동일하게
+// { conditionId, recommendations } 형태라 useRecommendationStore.recompute()가 submit()과
+// 같은 방식으로 처리한다. 재계산도 OpenAI 이유 생성을 다시 거칠 수 있어 동일하게 20초 타임아웃.
+export const recomputeUserCondition = (conditionId) =>
+  api.post(`/user-conditions/${conditionId}/recompute`, null, { timeout: 20000 });

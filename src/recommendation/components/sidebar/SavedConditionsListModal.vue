@@ -1,5 +1,6 @@
 <script setup>
 import { X, MapPin, BookOpen } from 'lucide-vue-next'
+import { formatSavedDate } from '../../../condition/utils/formatSavedDate'
 
 // GET /user-conditions/saved 응답 그대로: [{ conditionId, title, rentalType, destAddress,
 // commuteType, maxCommuteTime, maxTransferCount, minArea, maxDeposit, maxRent, createdAt }]
@@ -8,11 +9,6 @@ const emit = defineEmits(['close'])
 
 const RENTAL_TYPE_LABEL = { MONTHLY: '월세', JEONSE: '전세' }
 const COMMUTE_TYPE_LABEL = { PUBLIC_TRANSIT: '대중교통', CAR: '자가용' }
-
-function formatDate(iso) {
-  if (!iso) return ''
-  return new Date(iso).toLocaleDateString('ko-KR').replace(/\. /g, '.').slice(0, -1)
-}
 </script>
 
 <template>
@@ -45,7 +41,7 @@ function formatDate(iso) {
             <div class="flex items-start justify-between gap-3">
               <div class="min-w-0">
                 <p class="font-semibold text-foreground text-sm truncate">{{ c.title || '제목 없는 조건' }}</p>
-                <p class="text-xs text-muted-foreground mt-1">{{ formatDate(c.createdAt) }}</p>
+                <p class="text-xs text-muted-foreground mt-1">{{ formatSavedDate(c.createdAt) }}</p>
                 <div class="flex flex-wrap gap-1.5 mt-2">
                   <span
                     v-if="c.destAddress"

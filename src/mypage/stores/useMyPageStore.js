@@ -1,9 +1,9 @@
 import { defineStore } from "pinia";
-import { INITIAL_REVIEWS, DEFAULT_SAVED_CONDITIONS } from "../../common/utils/mockData";
 import { getMyReviews, deleteReview as deleteReviewApi } from "../../review/api/review.js";
 import { mapReviewResponse } from "../../review/constants.js";
 import { getErrorMessage } from "../../common/api/axios.js";
 import { addFavoriteDong, removeFavoriteDong, getFavoriteDongs } from "../api/mypage";
+import { getSavedUserConditions, deleteSavedCondition as deleteSavedConditionApi } from "../../condition/api/userConditions.js";
 
 export const useMyPageStore = defineStore("mypage", {
   state: () => ({
@@ -11,7 +11,11 @@ export const useMyPageStore = defineStore("mypage", {
     savedNeighborhoodsLoaded: false, // fetchSavedNeighborhoods를 앱당 한 번만 부르기 위한 플래그
     savedNeighborhoodsStatus: "idle", // idle | loading | success | error
     savedNeighborhoodsError: "",
-    savedConditions: [...DEFAULT_SAVED_CONDITIONS], // { id, title, state, date }
+    // GET /user-conditions/saved 응답 그대로: [{ conditionId, title, rentalType, destAddress,
+    // commuteType, maxCommuteTime, maxTransferCount, minArea, maxDeposit, maxRent, createdAt }]
+    savedConditions: [],
+    savedConditionsStatus: "idle", // idle | loading | success | error
+    savedConditionsError: "",
 
     /*
      * [수정] 기존에는 mockData.js의 INITIAL_REVIEWS(더미 데이터)를 그대로 담아뒀었다.
@@ -90,11 +94,37 @@ export const useMyPageStore = defineStore("mypage", {
       this.savedNeighborhoods = [];
       this.savedNeighborhoodsLoaded = false;
     },
-    saveCondition(condition) {
-      this.savedConditions.push(condition);
+    // 마이페이지 진입 시 한 번 불러온다(MyPageView.vue onMounted). savedNeighborhoods와
+    // 달리 이 화면에서만 쓰는 데이터라 헤더 캐싱 없이 매번 새로 조회한다.
+    async fetchSavedConditions() {
+      this.savedConditionsStatus = "loading";
+      this.savedConditionsError = "";
+
+      try {
+        const res = await getSavedUserConditions();
+        this.savedConditions = res.data.data;
+        this.savedConditionsStatus = "success";
+      } catch (error) {
+        console.error("저장한 조건 목록을 불러오지 못했습니다:", error);
+        this.savedConditions = [];
+        this.savedConditionsStatus = "error";
+        this.savedConditionsError =
+          getErrorMessage(error, "저장한 조건을 불러오지 못했어요. 잠시 후 다시 시도해주세요.");
+      }
     },
-    deleteCondition(id) {
-      this.savedConditions = this.savedConditions.filter((c) => c.id !== id);
+    // 낙관적으로 먼저 화면에서 지우고, 삭제 요청이 실패하면 원래 자리에 되돌린다.
+    async deleteSavedCondition(conditionId) {
+      const idx = this.savedConditions.findIndex((c) => c.conditionId === conditionId);
+      if (idx === -1) return;
+      const removed = this.savedConditions[idx];
+      this.savedConditions.splice(idx, 1);
+
+      try {
+        await deleteSavedConditionApi(conditionId);
+      } catch (error) {
+        this.savedConditions.splice(idx, 0, removed);
+        throw error;
+      }
     },
 
     // 로그인한 사용자가 실제로 작성한 리뷰 목록을 DB에서 조회한다.
