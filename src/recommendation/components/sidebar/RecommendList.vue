@@ -96,10 +96,12 @@ const sortedNeighborhoods = computed(() => {
   }
 });
 
-// compareList는 adminDongId 배열이라 그대로 보여주면 "360, 220 비교 중"처럼 숫자로
-// 뜬다. 목록에 있는 동 이름으로 바꿔서 표시한다.
+// 비교 대상은 현재 목록에 있는 동 이름으로만 표시한다.
 const compareNames = computed(() =>
-  props.compareList.map((id) => props.neighborhoods.find((n) => n.id === id)?.dongName ?? id).join(", "),
+  props.compareList
+    .map((id) => props.neighborhoods.find((n) => n.id === id)?.dongName)
+    .filter(Boolean)
+    .join(", "),
 );
 </script>
 

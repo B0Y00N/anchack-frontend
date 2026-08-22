@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import RecommendList from '../components/sidebar/RecommendList.vue'
 import SaveConditionModal from '../components/sidebar/SaveConditionModal.vue'
@@ -62,6 +62,14 @@ const neighborhoods = computed(() =>
     cons: r.caution ? r.caution.split(',').map((s) => s.trim()) : [],
     ...recommendation.detailsById[r.adminDongId],
   })),
+)
+
+// 새 결과 목록에 없는 비교 대상은 남겨두지 않는다. 이전 검색의 adminDongId가 남아
+// 숫자 ID로 노출되는 것을 막고, 비교 대상은 언제나 현재 검색 결과로만 유지한다.
+watch(
+  () => neighborhoods.value.map((neighborhood) => neighborhood.id),
+  (ids) => nbhd.retainCompare(ids),
+  { immediate: true },
 )
 
 // ResultMap이 핀을 찍는 데 쓰는 모양(id/lat/lng)으로 변환.

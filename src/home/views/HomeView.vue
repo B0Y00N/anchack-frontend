@@ -4,10 +4,16 @@ import HomeHero from "../components/HomeHero.vue";
 import HomeServiceCards from "../components/HomeServiceCards.vue";
 import HomeProcessSteps from "../components/HomeProcessSteps.vue";
 import TheFooter from "../../common/components/TheFooter.vue";
+import { useSearchStore } from "../../condition/stores/useSearchStore";
+import { useNeighborhoodStore } from "../../region/stores/useNeighborhoodStore";
 
 const router = useRouter();
+const search = useSearchStore();
+const nbhd = useNeighborhoodStore();
 
 function start() {
+  search.reset();
+  nbhd.resetCompare();
   router.push("/search/step/1");
 }
 function navigate(page) {

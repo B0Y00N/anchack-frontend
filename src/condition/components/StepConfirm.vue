@@ -122,7 +122,7 @@ function selectAddress(name, address) {
 
         <InlineEditSection
           title="예산"
-          :lines="[`${state.rentType} · ${state.deposit.toLocaleString()}만원`, `관리비 ${state.management}만원`]"
+          :lines="[`${state.rentType} · ${state.deposit.toLocaleString()}만원`]"
           :is-open="expanded === 'budget'"
           @toggle="toggleSection('budget')"
         >
@@ -138,10 +138,6 @@ function selectAddress(name, address) {
               <div v-if="state.rentType === '월세'">
                 <label class="block text-xs text-muted-foreground mb-1">최대 월세 (만원)</label>
                 <input type="number" :value="state.monthly" @input="update({ monthly: +$event.target.value })" class="w-full bg-white border border-border rounded-xl px-4 py-3 text-sm" />
-              </div>
-              <div>
-                <label class="block text-xs text-muted-foreground mb-1">최대 관리비 (만원)</label>
-                <input type="number" :value="state.management" @input="update({ management: +$event.target.value })" class="w-full bg-white border border-border rounded-xl px-4 py-3 text-sm" />
               </div>
             </div>
             <div>
