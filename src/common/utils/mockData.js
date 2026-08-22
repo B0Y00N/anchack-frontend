@@ -3,7 +3,7 @@
 export const DEFAULT_STATE = {
   addressTab: 'known',
   detailAddress: '',
-  commuteAreas: ['은평구'],
+  commuteAreas: [],
   commuteArea: '',
   commuteMode: '대중교통',
   maxCommuteTime: 60,

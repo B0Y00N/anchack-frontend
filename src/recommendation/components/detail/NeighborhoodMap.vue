@@ -163,8 +163,10 @@ function initMap() {
   const map = new window.kakao.maps.Map(container, {
     center: new window.kakao.maps.LatLng(37.5665, 126.978),
     level: 5,
+    disableDoubleClickZoom: true,
   })
   kakaoMapInstance = map
+  map.setZoomable(false)
 
   if (geoLoaded) {
     focusOnCurrentDong()
@@ -247,8 +249,8 @@ function focusOnCurrentDong() {
       boundaryPolygon = new window.kakao.maps.Polygon({
         path: dongPathsMap[key],
         strokeWeight: 3,
-        strokeColor: '#2D7A4F',
-        strokeOpacity: 0.9,
+        strokeColor: '#FFFDF8',
+        strokeOpacity: 1,
         fillColor: '#2D7A4F',
         fillOpacity: 0.12,
       })

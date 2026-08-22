@@ -6,14 +6,20 @@ const props = defineProps({
   rank: { type: Number, required: true },
   compareList: { type: Array, required: true },
   isSaved: { type: Boolean, default: false },
+  isFocused: { type: Boolean, default: false },
 })
-const emit = defineEmits(['detail', 'compare', 'toggle-save'])
+const emit = defineEmits(['detail', 'focus', 'compare', 'toggle-save'])
 </script>
 
 <template>
   <div
-    class="bg-card border border-border rounded-2xl p-5 hover:border-primary/30 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-pointer"
-    @click="emit('detail')"
+    :data-dong-name="n.dongName"
+    :class="`border rounded-2xl p-5 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-pointer ${
+      isFocused
+        ? 'bg-primary/10 border-primary shadow-sm ring-1 ring-primary/20'
+        : 'bg-card border-border hover:border-primary/30'
+    }`"
+    @click="emit('focus')"
   >
     <div class="flex items-start justify-between mb-3">
       <div class="flex items-center gap-2.5">

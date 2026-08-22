@@ -23,7 +23,10 @@ function toggleSection(key) {
   expanded.value = expanded.value === key ? null : key;
 }
 
-const target = computed(() => (props.state.addressTab === "unknown" ? "아직 미정" : props.state.commuteArea || "미설정"));
+const target = computed(() => {
+  if (props.state.addressTab !== "unknown") return props.state.commuteArea || "미설정";
+  return props.state.commuteAreas.length ? props.state.commuteAreas.join(", ") : "아직 미정";
+});
 const depositChips = computed(() => (props.state.rentType === "월세" ? [500, 1000, 1500, 2000, 3000] : [5000, 10000, 15000, 20000, 30000]));
 
 function togglePriority(p) {
@@ -73,7 +76,7 @@ function selectAddress(name, address) {
             </div>
             <div v-if="state.addressTab === 'unknown'" class="bg-white border border-border rounded-xl p-4">
               <div class="flex items-center justify-between mb-3">
-                <p class="text-xs font-semibold text-foreground">출근지 주변 구를 선택해주세요</p>
+                <p class="text-xs font-semibold text-foreground">원하시는 구를 선택해보세요</p>
                 <span class="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">0~2개</span>
               </div>
               <DistrictMap :model-value="state.commuteAreas" @update:model-value="(areas) => update({ commuteAreas: areas })" :max="2" />

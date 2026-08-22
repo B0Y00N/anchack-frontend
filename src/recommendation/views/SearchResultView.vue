@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import RecommendList from '../components/sidebar/RecommendList.vue'
 import SaveConditionModal from '../components/sidebar/SaveConditionModal.vue'
@@ -77,10 +77,32 @@ watch(
 const mapRecommendations = computed(() =>
   recommendation.recommendations.map((r) => ({
     id: r.dongName,
+    district: r.guName,
     lat: Number(r.lat),
     lng: Number(r.lng),
   })),
 )
+
+const focusedDong = ref(null)
+function toggleMapFocus(dongName) {
+  focusedDong.value = focusedDong.value === dongName ? null : dongName
+}
+function forceMapFocus(dongName) {
+  // 이미 같은 동이 선택된 상태에서 사용자가 지도를 다시 축소한 경우에도
+  // prop 변경을 한 번 발생시켜 6레벨 포커싱을 다시 적용한다.
+  if (focusedDong.value === dongName) {
+    focusedDong.value = null
+    nextTick(() => {
+      focusedDong.value = dongName
+    })
+    return
+  }
+  focusedDong.value = dongName
+}
+function focusNeighborhood(id) {
+  const neighborhood = neighborhoods.value.find((item) => item.id === id)
+  if (neighborhood) toggleMapFocus(neighborhood.dongName)
+}
 
 const mode = computed(() => {
   if (route.path.endsWith('/compare')) return 'compare'
@@ -164,7 +186,9 @@ function goListings() {
         :condition-saved="conditionSaved"
         :rent-type="search.appState.rentType"
         :details-status="recommendation.detailsStatus"
+        :focused-dong="focusedDong"
         @detail="goDetail"
+        @focus="focusNeighborhood"
         @compare="toggleCompare"
         @toggle-save="toggleSaveWithToast"
         @go-compare="router.push('/search/compare')"
@@ -179,7 +203,9 @@ function goListings() {
             v-model="search.appState.selectedDistricts"
             :max="2"
             :recommendations="mapRecommendations"
-            :highlighted="mapRecommendations[0]?.id"
+            :focused-dong="focusedDong"
+            @toggle-focus="toggleMapFocus"
+            @force-focus="forceMapFocus"
           />
         </div>
       </div>
