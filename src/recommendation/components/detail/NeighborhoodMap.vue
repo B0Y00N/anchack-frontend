@@ -117,8 +117,9 @@ let disposed = false
 // 덮어쓰는 것을 방지).
 function loadPlacesFor(adminDongId) {
   placesError.value = false
+  // 동이 바뀌면 다음 응답이 도착하기 전까지 이전 동의 핀이 남지 않게 비운다.
+  allPlaces.value = []
   if (adminDongId == null) {
-    allPlaces.value = []
     return
   }
 
