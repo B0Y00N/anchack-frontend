@@ -13,7 +13,7 @@ const emit = defineEmits(['detail', 'focus', 'compare', 'toggle-save'])
 
 <template>
   <div
-    :data-dong-name="n.dongName"
+    :data-admin-dong-id="n.id"
     :class="`border rounded-2xl p-5 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-pointer ${
       isFocused
         ? 'bg-primary/10 border-primary shadow-sm ring-1 ring-primary/20'

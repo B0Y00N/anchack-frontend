@@ -16,7 +16,7 @@ const props = defineProps({
   rentType: { type: String, default: "월세" },
   // admin-dongs/batch(월세 시세/치안 점수) 로딩 상태. 예산순/치안순은 이 데이터가 있어야 정렬 가능
   detailsStatus: { type: String, default: "idle" },
-  focusedDong: { type: String, default: null },
+  focusedAdminDongId: { type: Number, default: null },
 });
 const emit = defineEmits(["detail", "focus", "compare", "toggle-save", "go-compare", "save-condition-click", "show-saved-list"]);
 
@@ -60,18 +60,20 @@ watch(filters, (fs) => {
 
 // 지도 이름표로 선택한 동이 현재 스크롤 영역 밖에 있어도,
 // 좌측 목록에서 선택된 카드가 바로 보이도록 해당 카드 위치로 이동한다.
-async function scrollToFocusedCard(dongName = props.focusedDong) {
-  if (!dongName) return;
+async function scrollToFocusedCard(adminDongId = props.focusedAdminDongId) {
+  if (adminDongId == null) return;
   await nextTick();
   requestAnimationFrame(() => {
-    const cards = resultListRef.value?.querySelectorAll("[data-dong-name]") ?? [];
-    const targetCard = [...cards].find((card) => card.dataset.dongName === dongName);
+    const cards = resultListRef.value?.querySelectorAll("[data-admin-dong-id]") ?? [];
+    const targetCard = [...cards].find(
+      (card) => card.dataset.adminDongId === String(adminDongId),
+    );
     targetCard?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   });
 }
 
-watch(() => props.focusedDong, scrollToFocusedCard);
-// 상세/비교 화면에서 돌아올 때는 focusedDong 값이 이미 존재한 채로 목록이 새로
+watch(() => props.focusedAdminDongId, scrollToFocusedCard);
+// 상세/비교 화면에서 돌아올 때는 포커싱 ID가 이미 존재한 채로 목록이 새로
 // 마운트될 수 있으므로, 이 시점에도 한 번 스크롤 위치를 복원한다.
 onMounted(() => scrollToFocusedCard());
 
@@ -207,7 +209,7 @@ const compareNames = computed(() =>
             :rank="i + 1"
             :compare-list="compareList"
             :is-saved="savedNeighborhoods.includes(n.id)"
-            :is-focused="focusedDong === n.dongName"
+            :is-focused="focusedAdminDongId === n.id"
             @detail="emit('detail', n.id)"
             @focus="emit('focus', n.id)"
             @compare="emit('compare', n.id)"

@@ -72,36 +72,36 @@ watch(
   { immediate: true },
 )
 
-// ResultMap이 핀을 찍는 데 쓰는 모양(id/lat/lng)으로 변환.
-// id는 지도 뱃지 표시 및 geojson 행정동 경계 매칭에 dongName을 그대로 사용한다(ResultMap.vue 참고).
+// 지도 포커싱은 동 이름 중복을 피하기 위해 adminDongId를 사용하고,
+// 경계 조회와 화면 표시는 구 이름·동 이름을 함께 전달한다.
 const mapRecommendations = computed(() =>
   recommendation.recommendations.map((r) => ({
-    id: r.dongName,
+    id: r.adminDongId,
     district: r.guName,
+    dongName: r.dongName,
     lat: Number(r.lat),
     lng: Number(r.lng),
   })),
 )
 
-const focusedDong = ref(null)
-function toggleMapFocus(dongName) {
-  focusedDong.value = focusedDong.value === dongName ? null : dongName
+const focusedAdminDongId = ref(null)
+function toggleMapFocus(adminDongId) {
+  focusedAdminDongId.value = focusedAdminDongId.value === adminDongId ? null : adminDongId
 }
-function forceMapFocus(dongName) {
+function forceMapFocus(adminDongId) {
   // 이미 같은 동이 선택된 상태에서 사용자가 지도를 다시 축소한 경우에도
   // prop 변경을 한 번 발생시켜 6레벨 포커싱을 다시 적용한다.
-  if (focusedDong.value === dongName) {
-    focusedDong.value = null
+  if (focusedAdminDongId.value === adminDongId) {
+    focusedAdminDongId.value = null
     nextTick(() => {
-      focusedDong.value = dongName
+      focusedAdminDongId.value = adminDongId
     })
     return
   }
-  focusedDong.value = dongName
+  focusedAdminDongId.value = adminDongId
 }
 function focusNeighborhood(id) {
-  const neighborhood = neighborhoods.value.find((item) => item.id === id)
-  if (neighborhood) toggleMapFocus(neighborhood.dongName)
+  if (neighborhoods.value.some((item) => item.id === id)) toggleMapFocus(id)
 }
 
 const mode = computed(() => {
@@ -186,7 +186,7 @@ function goListings() {
         :condition-saved="conditionSaved"
         :rent-type="search.appState.rentType"
         :details-status="recommendation.detailsStatus"
-        :focused-dong="focusedDong"
+        :focused-admin-dong-id="focusedAdminDongId"
         @detail="goDetail"
         @focus="focusNeighborhood"
         @compare="toggleCompare"
@@ -203,7 +203,7 @@ function goListings() {
             v-model="search.appState.selectedDistricts"
             :max="2"
             :recommendations="mapRecommendations"
-            :focused-dong="focusedDong"
+            :focused-admin-dong-id="focusedAdminDongId"
             @toggle-focus="toggleMapFocus"
             @force-focus="forceMapFocus"
           />

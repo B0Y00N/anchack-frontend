@@ -5,17 +5,17 @@ import { loadKakaoMap } from '@/common/utils/loadKakaoMap.js'
 import { buildDistrictOutlinePaths } from '@/common/utils/buildDistrictOutlinePaths.js'
 
 const props = defineProps({
-  focusedDong: { type: String, default: null },
+  focusedAdminDongId: { type: Number, default: null },
   modelValue: { type: Array, default: () => [] },
   max: { type: Number, default: 2 },
   recommendations: {
     type: Array,
     default: () => [
-      { id: '증산동', district: '은평구', lat: 37.5838, lng: 126.9095 },
-      { id: '응암1동', district: '은평구', lat: 37.5987, lng: 126.923 },
-      { id: '망원2동', district: '마포구', lat: 37.5561, lng: 126.9042 },
-      { id: '신정3동', district: '양천구', lat: 37.5145, lng: 126.845 },
-      { id: '구로2동', district: '구로구', lat: 37.4945, lng: 126.8815 },
+      { id: 1, district: '은평구', dongName: '증산동', lat: 37.5838, lng: 126.9095 },
+      { id: 2, district: '은평구', dongName: '응암1동', lat: 37.5987, lng: 126.923 },
+      { id: 3, district: '마포구', dongName: '망원2동', lat: 37.5561, lng: 126.9042 },
+      { id: 4, district: '양천구', dongName: '신정3동', lat: 37.5145, lng: 126.845 },
+      { id: 5, district: '구로구', dongName: '구로2동', lat: 37.4945, lng: 126.8815 },
     ],
   },
 })
@@ -38,6 +38,10 @@ let selectedDongPolygon = null
 let kakaoMapInstance = null
 let overlays = []
 let districtOutlineList = []
+
+function createDongKey(district, dongName) {
+  return `${district}:${String(dongName ?? '').replace(/제(\d+동)$/, '$1')}`
+}
 
 const RAINBOW_25_COLORS = [
   '#C9675B', '#D38A4C', '#C8A44A', '#6F9876', '#5E9FA5',
@@ -150,13 +154,14 @@ function initMap() {
 
         // 동 단위로 정확히 확대(fit)하고 경계선을 그릴 수 있도록
         // 동별 경계(bounds)와 실제 좌표 경로(paths)를 별도로 누적
-        if (dongName && !dongBoundsMap[dongName]) {
-          dongBoundsMap[dongName] = new window.kakao.maps.LatLngBounds()
+        const dongKey = dongName ? createDongKey(sigName, dongName) : null
+        if (dongKey && !dongBoundsMap[dongKey]) {
+          dongBoundsMap[dongKey] = new window.kakao.maps.LatLngBounds()
         }
-        if (dongName && !dongPathsMap[dongName]) {
-          dongPathsMap[dongName] = []
+        if (dongKey && !dongPathsMap[dongKey]) {
+          dongPathsMap[dongKey] = []
         }
-        const dongBounds = dongName ? dongBoundsMap[dongName] : null
+        const dongBounds = dongKey ? dongBoundsMap[dongKey] : null
 
         const coordinates = feature.geometry.coordinates
 
@@ -175,12 +180,12 @@ function initMap() {
           coordinates.forEach((polygon) => {
             const path = processCoords(polygon[0])
             districtPathsMap[sigName].push(path)
-            if (dongName) dongPathsMap[dongName].push(path)
+            if (dongKey) dongPathsMap[dongKey].push(path)
           })
         } else {
           const path = processCoords(coordinates[0])
           districtPathsMap[sigName].push(path)
-          if (dongName) dongPathsMap[dongName].push(path)
+          if (dongKey) dongPathsMap[dongKey].push(path)
         }
       })
 
@@ -220,7 +225,7 @@ function initMap() {
       })
 
       renderMapLabels()
-      if (props.focusedDong) focusOnDong(props.focusedDong)
+      if (props.focusedAdminDongId != null) focusOnDong(props.focusedAdminDongId)
       isLoading.value = false
     })
     .catch((err) => {
@@ -251,9 +256,9 @@ function renderMapLabels() {
     const latLng = new window.kakao.maps.LatLng(item.lat, item.lng)
     const nodeDiv = document.createElement('div')
     const isSelected = props.modelValue.includes(item.id)
-    const isFocused = item.id === props.focusedDong
+    const isFocused = item.id === props.focusedAdminDongId
     nodeDiv.className = `dong-badge ${isFocused ? 'highlighted' : 'normal'} ${isSelected ? 'selected' : ''}`
-    nodeDiv.innerText = item.id
+    nodeDiv.innerText = item.dongName
     nodeDiv.onclick = (e) => {
       e.stopPropagation()
       // 현재 확대 레벨과 무관하게 해당 동이 속한 구를 6레벨로 다시 포커싱한다.
@@ -284,10 +289,9 @@ const FOCUS_ZOOM_LEVEL = 6
 
 // mockData의 표기(예: '구로제2동')와 실제 geojson 행정동명(예: '구로2동')이
 // 다를 수 있어, '제N동' 형태를 'N동'으로 바꿔서도 한 번 더 찾아본다.
-function resolveDongKey(id) {
-  if (dongBoundsMap[id]) return id
-  const normalized = id.replace(/제(\d+동)$/, '$1')
-  return dongBoundsMap[normalized] ? normalized : id
+function resolveDongKey(district, dongName) {
+  const key = createDongKey(district, dongName)
+  return dongBoundsMap[key] ? key : null
 }
 
 // 선택된 동의 실제 행정 경계선을 지도 위에 그려서 강조 표시
@@ -327,7 +331,7 @@ function focusOnDong(id) {
   if (!target) return
 
   const districtBounds = districtBoundsMap[target.district]
-  const key = resolveDongKey(id)
+  const key = resolveDongKey(target.district, target.dongName)
   if (districtBounds && !districtBounds.isEmpty()) {
     kakaoMapInstance.setBounds(districtBounds)
     kakaoMapInstance.setLevel(FOCUS_ZOOM_LEVEL)
@@ -361,7 +365,7 @@ function resetMapView() {
 }
 
 watch(
-  () => props.focusedDong,
+  () => props.focusedAdminDongId,
   (newVal) => {
     if (!kakaoMapInstance) return
     if (newVal) focusOnDong(newVal)
