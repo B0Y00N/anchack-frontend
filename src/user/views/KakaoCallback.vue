@@ -6,6 +6,7 @@
       <p>{{ errorMessage }}</p>
 
       <button type="button" @click="goLogin">로그인 화면으로 이동</button>
+      <button type="button" @click="goHome">홈으로 이동</button>
     </div>
   </div>
 </template>
@@ -13,8 +14,10 @@
 <script setup>
 import { onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
+import { getErrorMessage } from "@/common/api/axios";
 import { loginWithKakao } from "@/user/api/auth";
 import { useAuthStore } from "@/user/stores/useAuthStore";
+import { consumeKakaoOAuthState } from "@/user/utils/kakaoOAuth";
 
 const route = useRoute();
 const router = useRouter();
@@ -27,6 +30,10 @@ function goLogin() {
   router.replace("/login");
 }
 
+function goHome() {
+  router.replace("/");
+}
+
 function getLoginRedirect() {
   const redirect = sessionStorage.getItem("loginRedirect");
   sessionStorage.removeItem("loginRedirect");
@@ -35,8 +42,17 @@ function getLoginRedirect() {
 
 onMounted(async () => {
   const code = route.query.code;
+  const callbackState = route.query.state;
   const kakaoError = route.query.error;
   const kakaoErrorDescription = route.query.error_description;
+
+  if (!consumeKakaoOAuthState(callbackState)) {
+    errorMessage.value =
+      "카카오 로그인 요청을 확인할 수 없습니다. 다시 로그인해 주세요.";
+    console.error("카카오 로그인 실패: OAuth state가 일치하지 않습니다.");
+    isLoading.value = false;
+    return;
+  }
 
   if (kakaoError) {
     errorMessage.value =
@@ -45,7 +61,6 @@ onMounted(async () => {
         : "카카오 로그인이 취소되었습니다.";
     console.error("카카오 OAuth 실패:", kakaoError, errorMessage.value);
     isLoading.value = false;
-    await router.replace("/login");
     return;
   }
 
@@ -53,7 +68,6 @@ onMounted(async () => {
     errorMessage.value = "카카오 인가 코드가 없습니다.";
     console.error("카카오 로그인 실패:", errorMessage.value);
     isLoading.value = false;
-    await router.replace("/login");
     return;
   }
 
@@ -61,12 +75,17 @@ onMounted(async () => {
     const response = await loginWithKakao(code);
     const { user, accessToken, tokenType = "Bearer" } = response.data;
 
-    if (!accessToken) {
-      throw new Error("서버 응답에 JWT가 없습니다.");
-    }
+    const responseErrorMessage = !accessToken
+      ? "서버 응답에 JWT가 없습니다."
+      : !user
+        ? "서버 응답에 사용자 정보가 없습니다."
+        : "";
 
-    if (!user) {
-      throw new Error("서버 응답에 사용자 정보가 없습니다.");
+    if (responseErrorMessage) {
+      authStore.clearUser();
+      errorMessage.value = responseErrorMessage;
+      console.error("카카오 로그인 실패:", responseErrorMessage);
+      return;
     }
 
     localStorage.setItem("accessToken", accessToken);
@@ -78,32 +97,20 @@ onMounted(async () => {
     console.error("카카오 로그인 실패:", error);
     authStore.clearUser();
 
+    const status = error.response?.status;
+    let fallbackMessage = "카카오 로그인 처리 중 오류가 발생했습니다.";
+
     if (!error.response) {
-      errorMessage.value = error.message || "백엔드 서버에 연결할 수 없습니다.";
-    } else if (error.response.status === 400) {
-      errorMessage.value =
-        error.response.data?.error?.message ||
-        error.response.data?.message ||
-        "카카오 인가 코드가 유효하지 않습니다.";
-    } else if (error.response.status === 401) {
-      errorMessage.value =
-        error.response.data?.error?.message ||
-        error.response.data?.message ||
-        "카카오 인증에 실패했습니다.";
-    } else if (error.response.status >= 500) {
-      errorMessage.value =
-        error.response.data?.error?.message ||
-        error.response.data?.message ||
-        "서버에서 로그인 처리 중 오류가 발생했습니다.";
-    } else {
-      errorMessage.value =
-        error.response.data?.error?.message ||
-        error.response.data?.message ||
-        error.message ||
-        "카카오 로그인 처리 중 오류가 발생했습니다.";
+      fallbackMessage = error.message || "백엔드 서버에 연결할 수 없습니다.";
+    } else if (status === 400) {
+      fallbackMessage = "카카오 인가 코드가 유효하지 않습니다.";
+    } else if (status === 401) {
+      fallbackMessage = "카카오 인증에 실패했습니다.";
+    } else if (status >= 500) {
+      fallbackMessage = "서버에서 로그인 처리 중 오류가 발생했습니다.";
     }
 
-    await router.replace("/login");
+    errorMessage.value = getErrorMessage(error, fallbackMessage);
   } finally {
     isLoading.value = false;
   }
