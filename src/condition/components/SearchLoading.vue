@@ -9,8 +9,18 @@ const props = defineProps({
 });
 const emit = defineEmits(["done", "retry", "back"]);
 
-const steps = ["목적지까지 통근 가능한 동네를 찾고 있어요", "예산 범위와 동네 시세를 비교하고 있어요", "원하는 생활시설을 확인하고 있어요", "생활방식에 맞는 동네를 분석하고 있어요"];
+// 백엔드 필터링 실제 순서(필수 시설 → 예산/주거유형 → 통근, API_USER_CONDITIONS_REVISION_REQUEST.md
+// P3 참고)에 맞춘 문구. 실시간 진행 상황을 아는 게 아니라(응답이 한 번에 옴) 고정 딜레이로
+// 흉내내는 연출이라 실제 개수는 안 보여준다 - 진짜 단계별 개수는 응답이 온 뒤 SearchFunnel.vue가
+// filterFunnel로 보여준다.
+const steps = [
+  "필수 조건에 맞는 동네를 확인하고 있어요",
+  "예산 범위에 맞는 동네를 고르고 있어요",
+  "출퇴근 가능한 동네로 좁히고 있어요",
+  "조건에 딱 맞는 순서로 정리하고 있어요",
+];
 const progress = ref(0);
+const completed = ref(false);
 let interval, timeout;
 
 // 실제 API가 더 빨리 끝나도 최소 이 정도는 스텝 연출을 보여준다.
@@ -25,8 +35,9 @@ onUnmounted(() => {
 });
 
 watch([progress, () => props.status], ([p, status]) => {
-  if (p >= steps.length && status === "success") {
-    timeout = setTimeout(() => emit("done"), 500);
+  if (p >= steps.length && status === "success" && !completed.value) {
+    completed.value = true;
+    timeout = setTimeout(() => emit("done"), 700);
   }
 });
 </script>
@@ -46,14 +57,23 @@ watch([progress, () => props.status], ([p, status]) => {
     </div>
 
     <div v-else class="w-full max-w-[420px] px-6">
-      <div class="w-16 h-16 bg-secondary rounded-2xl flex items-center justify-center mx-auto mb-10 shadow-sm">
-        <Loader2 class="text-primary animate-spin" :size="30" />
+      <div class="text-center mb-8">
+        <div
+          :class="`w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-5 shadow-sm transition-colors duration-300 ${
+            completed ? 'bg-primary text-white' : 'bg-secondary text-primary'
+          }`"
+        >
+          <Check v-if="completed" :size="28" class="animate-[pop_.32s_ease-out]" />
+          <Loader2 v-else class="animate-spin will-change-transform" :size="28" />
+        </div>
+        <h1 class="text-lg font-bold text-foreground tracking-tight">나에게 맞는 동을 찾고 있어요</h1>
       </div>
+
       <div class="space-y-3">
         <div
           v-for="(step, i) in steps"
           :key="i"
-          :class="`flex items-center gap-3 px-5 py-4 rounded-xl border transition-all duration-300 ${i < progress ? 'bg-secondary border-primary/20' : i === progress ? 'bg-card border-primary/30 shadow-sm' : 'bg-card border-border'}`"
+          :class="`flex items-center gap-3 px-5 py-4 rounded-xl border transition duration-300 ${i < progress ? 'bg-secondary border-primary/20' : i === progress ? 'bg-card border-primary/30 shadow-sm' : 'bg-card border-border'}`"
         >
           <div :class="`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 ${i < progress ? 'bg-primary' : i === progress ? 'border-2 border-primary' : 'border-2 border-muted-foreground/25'}`">
             <Check v-if="i < progress" :size="11" class="text-white" />
@@ -65,3 +85,24 @@ watch([progress, () => props.status], ([p, status]) => {
     </div>
   </div>
 </template>
+
+<style scoped>
+@keyframes pop {
+  0% {
+    transform: scale(0.75);
+  }
+  75% {
+    transform: scale(1.08);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+</style>
