@@ -136,7 +136,7 @@ function initMap() {
 
   const map = new window.kakao.maps.Map(container, {
     center: new window.kakao.maps.LatLng(37.5665, 126.978),
-    level: 9, // 첫 번째 코드의 지도 레벨 유지 (필요시 10으로 변경 가능)
+    level: 9, // 전국 구 선택용 기본 축척
     disableDoubleClickZoom: true,
   })
   kakaoMapInstance = map
@@ -223,9 +223,10 @@ function initMap() {
 
         const polygon = new window.kakao.maps.Polygon({
           path: paths,
-            strokeWeight: 2,
-            strokeColor: '#FFFDF8',
-            strokeOpacity: 0.95,
+          // 행정동 구분은 남기되, 색 면적 위에서 흰 선이 과하게 도드라지지 않도록 얇고 은은하게 표시한다.
+          strokeWeight: 1,
+          strokeColor: '#FFFDF8',
+          strokeOpacity: 0.5,
           fillColor: assignedColor,
           fillOpacity: 0.8,
         })

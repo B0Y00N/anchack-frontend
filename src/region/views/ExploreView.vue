@@ -11,7 +11,6 @@ import { loadKakaoMap } from '@/common/utils/loadKakaoMap.js'
 import { buildDistrictOutlinePaths } from '@/common/utils/buildDistrictOutlinePaths.js'
 import StarDisplay from '@/common/components/StarDisplay.vue'
 import BaseToast from '@/common/components/BaseToast.vue'
-import TheFooter from '@/common/components/TheFooter.vue'
 import { DONG_DATA } from '@/common/utils/mockData'
 import { useNeighborhoodStore } from '@/region/stores/useNeighborhoodStore'
 import { useMyPageStore } from '@/mypage/stores/useMyPageStore'
@@ -141,7 +140,10 @@ async function loadDongReviews(district, dong) {
 
   try {
     // 1) 화면에서 다루는 "구 이름 + 동 이름" 문자열을 실제 admin_dong_id로 변환
-    const adminDongRes = await getAdminDong(district, dong)
+    // GeoJSON은 "상계3·4동", 화면 목록은 "상계3,4동"처럼 표기하지만 DB에는
+    // "상계3.4동"으로 저장된 동이 있다. DB 조회에만 구분기호를 점으로 통일한다.
+    const adminDongQueryName = dong.replace(/[,·ㆍ]/g, '.')
+    const adminDongRes = await getAdminDong(district, adminDongQueryName)
     adminDong.value = adminDongRes.data
 
     // 2) admin_dong_id 기준으로 실제 DB에 저장된 리뷰 목록 조회
@@ -521,9 +523,9 @@ function initMap() {
 
         const polygon = new window.kakao.maps.Polygon({
           path: paths,
-          strokeWeight: 2,
+          strokeWeight: 1,
           strokeColor: '#FFFDF8',
-          strokeOpacity: 0.95,
+          strokeOpacity: 0.5,
           fillColor: assignedColor,
           fillOpacity: 0.65,
         })
@@ -605,7 +607,7 @@ function initMap() {
 
 <template>
   <!-- 동 상세 화면 -->
-  <div v-if="selectedDong" class="min-h-screen bg-background pt-15">
+  <div v-if="selectedDong" class="flex h-dvh flex-col overflow-hidden bg-background pt-15">
     <ReviewWriteModal
       v-if="showReviewForm && adminDong"
       :admin-dong-id="adminDong.adminDongId"
@@ -620,7 +622,7 @@ function initMap() {
     />
     <BaseToast v-if="saveToast" :message="saveToast" @done="saveToast = null" />
 
-    <div class="border-b border-border bg-white sticky top-15 z-20">
+    <div class="shrink-0 border-b border-border bg-white">
       <ExploreHeader
         :district="selectedDistrict"
         :dong="selectedDong"
@@ -633,18 +635,19 @@ function initMap() {
         @listings="goListings"
         @write-review="openReviewForm"
       />
-      <ExploreTabs
-        :district="selectedDistrict"
-        :dong="selectedDong"
-        :reviews="dongReviewList"
-        :stats="dongStats?.stats"
-        :hash="dongStats?.hash"
-        @write-review="openReviewForm"
-        @listings="goListings"
-      />
     </div>
+    <ExploreTabs
+      class="min-h-0 flex-1"
+      :district="selectedDistrict"
+      :dong="selectedDong"
+      :admin-dong-id="adminDong?.adminDongId"
+      :reviews="dongReviewList"
+      :stats="dongStats?.stats"
+      :hash="dongStats?.hash"
+      @write-review="openReviewForm"
+      @listings="goListings"
+    />
 
-    <TheFooter />
   </div>
 
   <!-- 구 선택 / 동 목록 화면 -->
