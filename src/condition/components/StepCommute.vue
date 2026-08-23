@@ -16,14 +16,18 @@ const showAddrModal = ref(false);
 function update(patch) {
   emit("update", patch);
 }
-function selectAddress(name, addr) {
-  update({ commuteArea: addr, detailAddress: name });
+function selectAddress({ zonecode, address, roadAddress }) {
+  update({
+    postalCode: zonecode,
+    commuteArea: roadAddress || address,
+    detailAddress: "",
+  });
   showAddrModal.value = false;
 }
 
 const canNext = computed(() => {
   return props.state.addressTab === "known"
-    ? (props.state.detailAddress ? props.state.detailAddress.trim().length > 0 : false)
+    ? Boolean(props.state.commuteArea?.trim())
     : true;
 });
 
@@ -46,15 +50,16 @@ const canNext = computed(() => {
 
     <div v-if="state.addressTab === 'known'" class="mb-8 space-y-3">
       <div>
-        <label class="block text-sm font-semibold text-foreground mb-1.5">회사·학교 주소</label>
+        <label class="block text-sm font-semibold text-foreground mb-1.5">목적지 주소</label>
         <div class="flex gap-2">
-          <input type="text" placeholder="도로명 또는 지번 주소 검색" readonly :value="state.commuteArea" @click="showAddrModal = true" class="flex-1 bg-muted rounded-xl px-4 py-3 text-sm border-0 outline-none focus:ring-2 focus:ring-primary/30 cursor-pointer" />
-          <button @click="showAddrModal = true" class="bg-primary text-primary-foreground px-4 py-3 rounded-xl text-sm font-semibold flex items-center gap-1.5 hover:bg-primary/90 transition-colors"><Search :size="15" /> 검색</button>
+          <input type="text" placeholder="우편번호" readonly :value="state.postalCode" @click="showAddrModal = true" class="w-28 bg-muted rounded-xl px-4 py-3 text-sm border-0 outline-none cursor-pointer" />
+          <button @click="showAddrModal = true" class="bg-primary text-primary-foreground px-4 py-3 rounded-xl text-sm font-semibold flex items-center gap-1.5 hover:bg-primary/90 transition-colors"><Search :size="15" /> 우편번호 찾기</button>
         </div>
+        <input type="text" placeholder="우편번호 찾기로 기본 주소를 선택해주세요" readonly :value="state.commuteArea" @click="showAddrModal = true" class="w-full mt-2 bg-muted rounded-xl px-4 py-3 text-sm border-0 outline-none focus:ring-2 focus:ring-primary/30 cursor-pointer" />
       </div>
       <div>
-        <label class="block text-sm font-semibold text-foreground mb-1.5">상세 주소</label>
-        <input type="text" placeholder="예) 상암동 1600-1 SBS 사옥" :value="state.detailAddress" @input="update({ detailAddress: $event.target.value })" class="w-full bg-muted rounded-xl px-4 py-3 text-sm border-0 outline-none focus:ring-2 focus:ring-primary/30" />
+        <label class="block text-sm font-semibold text-foreground mb-1.5">상세 주소 <span class="font-normal text-muted-foreground">(선택)</span></label>
+        <input type="text" placeholder="예) 101동 1001호, 세종대학교" :value="state.detailAddress" @input="update({ detailAddress: $event.target.value })" class="w-full bg-muted rounded-xl px-4 py-3 text-sm border-0 outline-none focus:ring-2 focus:ring-primary/30" />
       </div>
     </div>
 

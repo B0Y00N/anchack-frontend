@@ -38,8 +38,13 @@ function toggleHousing(h) {
   const s = props.state;
   update({ housingTypes: s.housingTypes.includes(h) ? s.housingTypes.filter((x) => x !== h) : [...s.housingTypes, h] });
 }
-function selectAddress(name, address) {
-  update({ addressTab: "known", detailAddress: name, commuteArea: address });
+function selectAddress({ zonecode, address, roadAddress }) {
+  update({
+    addressTab: "known",
+    postalCode: zonecode,
+    commuteArea: roadAddress || address,
+    detailAddress: "",
+  });
   modal.value = false;
 }
 </script>
@@ -67,9 +72,13 @@ function selectAddress(name, address) {
                 {{ i === 0 ? "주소를 알고 있어요" : "아직 정해지지 않았어요" }}
               </button>
             </div>
-            <div v-if="state.addressTab === 'known'" class="flex gap-2">
-              <input type="text" readonly :value="state.commuteArea" placeholder="주소를 검색해주세요" @click="modal = true" class="flex-1 bg-white border border-border rounded-xl px-4 py-3 text-sm cursor-pointer" />
-              <button @click="modal = true" class="bg-primary text-primary-foreground px-4 py-3 rounded-xl text-sm font-semibold flex items-center gap-1.5 hover:bg-primary/90"><Search :size="15" /> 검색</button>
+            <div v-if="state.addressTab === 'known'" class="space-y-2">
+              <div class="flex gap-2">
+                <input type="text" readonly :value="state.postalCode" placeholder="우편번호" @click="modal = true" class="w-28 bg-white border border-border rounded-xl px-4 py-3 text-sm cursor-pointer" />
+                <button @click="modal = true" class="bg-primary text-primary-foreground px-4 py-3 rounded-xl text-sm font-semibold flex items-center gap-1.5 hover:bg-primary/90"><Search :size="15" /> 우편번호 찾기</button>
+              </div>
+              <input type="text" readonly :value="state.commuteArea" placeholder="우편번호 찾기로 기본 주소를 선택해주세요" @click="modal = true" class="w-full bg-white border border-border rounded-xl px-4 py-3 text-sm cursor-pointer" />
+              <input type="text" :value="state.detailAddress" placeholder="상세 주소 (선택)" @input="update({ detailAddress: $event.target.value })" class="w-full bg-white border border-border rounded-xl px-4 py-3 text-sm" />
             </div>
             <div v-if="state.addressTab === 'unknown'" class="bg-white border border-border rounded-xl p-4">
               <div class="flex items-center justify-between mb-3">
