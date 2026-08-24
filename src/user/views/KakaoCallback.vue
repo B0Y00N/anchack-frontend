@@ -1,19 +1,12 @@
 <template>
   <div class="callback-wrap">
-    <p v-if="isLoading">
-      카카오 로그인 처리 중입니다...
-    </p>
+    <p v-if="isLoading">카카오 로그인 처리 중입니다...</p>
 
     <div v-else-if="errorMessage" class="error-box">
       <p>{{ errorMessage }}</p>
 
-      <button type="button" @click="goLogin">
-        로그인 화면으로 이동
-      </button>
-
-      <button type="button" @click="goHome">
-        홈으로 이동
-      </button>
+      <button type="button" @click="goLogin">로그인 화면으로 이동</button>
+      <button type="button" @click="goHome">홈으로 이동</button>
     </div>
   </div>
 </template>
@@ -21,8 +14,10 @@
 <script setup>
 import { onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
+import { getErrorMessage } from "@/common/api/axios";
 import { loginWithKakao } from "@/user/api/auth";
 import { useAuthStore } from "@/user/stores/useAuthStore";
+import { consumeKakaoOAuthState } from "@/user/utils/kakaoOAuth";
 
 const route = useRoute();
 const router = useRouter();
@@ -31,12 +26,12 @@ const authStore = useAuthStore();
 const isLoading = ref(true);
 const errorMessage = ref("");
 
-function goHome() {
-  router.replace("/");
-}
-
 function goLogin() {
   router.replace("/login");
+}
+
+function goHome() {
+  router.replace("/");
 }
 
 function getLoginRedirect() {
@@ -47,129 +42,75 @@ function getLoginRedirect() {
 
 onMounted(async () => {
   const code = route.query.code;
+  const callbackState = route.query.state;
   const kakaoError = route.query.error;
-  const kakaoErrorDescription =
-    route.query.error_description;
+  const kakaoErrorDescription = route.query.error_description;
 
-  // 카카오 로그인 화면에서 취소한 경우
-  if (kakaoError) {
+  if (!consumeKakaoOAuthState(callbackState)) {
     errorMessage.value =
-      kakaoErrorDescription ||
-      "카카오 로그인이 취소되었습니다.";
-
+      "카카오 로그인 요청을 확인할 수 없습니다. 다시 로그인해 주세요.";
+    console.error("카카오 로그인 실패: OAuth state가 일치하지 않습니다.");
     isLoading.value = false;
     return;
   }
 
-  // 인가 코드가 없는 경우
-  if (!code || typeof code !== "string") {
+  if (kakaoError) {
     errorMessage.value =
-      "카카오 인가 코드가 없습니다.";
+      typeof kakaoErrorDescription === "string"
+        ? kakaoErrorDescription
+        : "카카오 로그인이 취소되었습니다.";
+    console.error("카카오 OAuth 실패:", kakaoError, errorMessage.value);
+    isLoading.value = false;
+    return;
+  }
 
+  if (!code || typeof code !== "string") {
+    errorMessage.value = "카카오 인가 코드가 없습니다.";
+    console.error("카카오 로그인 실패:", errorMessage.value);
     isLoading.value = false;
     return;
   }
 
   try {
-    console.log("카카오 인가 코드 확인 완료");
-
-    // 인가 코드를 백엔드로 전달
     const response = await loginWithKakao(code);
+    const { user, accessToken, tokenType = "Bearer" } = response.data;
 
-    console.log(
-      "카카오 로그인 응답:",
-      response.data,
-    );
+    const responseErrorMessage = !accessToken
+      ? "서버 응답에 JWT가 없습니다."
+      : !user
+        ? "서버 응답에 사용자 정보가 없습니다."
+        : "";
 
-    const responseData = response.data;
-
-    const accessToken =
-      responseData?.accessToken ||
-      responseData?.access_token;
-
-    const tokenType =
-      responseData?.tokenType ||
-      responseData?.token_type ||
-      "Bearer";
-
-    const loginUser =
-      responseData?.user;
-
-    if (!accessToken) {
-      throw new Error(
-        "서버 응답에 JWT가 없습니다.",
-      );
+    if (responseErrorMessage) {
+      authStore.clearUser();
+      errorMessage.value = responseErrorMessage;
+      console.error("카카오 로그인 실패:", responseErrorMessage);
+      return;
     }
 
-    if (!loginUser) {
-      throw new Error(
-        "서버 응답에 사용자 정보가 없습니다.",
-      );
-    }
+    localStorage.setItem("accessToken", accessToken);
+    localStorage.setItem("tokenType", tokenType);
+    authStore.setUser(user);
 
-    // 기존 토큰이 있다면 새 토큰으로 교체
-    localStorage.setItem(
-      "accessToken",
-      accessToken,
-    );
-
-    localStorage.setItem(
-      "tokenType",
-      tokenType,
-    );
-
-    // 로그인한 카카오 회원 정보를 Store에 저장
-    authStore.setUser(loginUser);
-
-    console.log("JWT 저장 완료");
-    console.log(
-      "로그인 사용자 저장 완료:",
-      authStore.user,
-    );
-
-    // 로그인 완료 후 접근하려던 페이지로 복귀
     await router.replace(getLoginRedirect());
   } catch (error) {
-    console.error(
-      "카카오 로그인 실패:",
-      error,
-    );
-
-    console.error(
-      "응답 상태:",
-      error.response?.status,
-    );
-
-    console.error(
-      "응답 내용:",
-      error.response?.data,
-    );
-
-    // 로그인 처리 중 저장된 불완전한 정보 제거
+    console.error("카카오 로그인 실패:", error);
     authStore.clearUser();
 
+    const status = error.response?.status;
+    let fallbackMessage = "카카오 로그인 처리 중 오류가 발생했습니다.";
+
     if (!error.response) {
-      errorMessage.value =
-        error.message ||
-        "백엔드 서버에 연결할 수 없습니다.";
-    } else if (error.response.status === 400) {
-      errorMessage.value =
-        error.response.data?.message ||
-        "카카오 인가 코드가 유효하지 않습니다.";
-    } else if (error.response.status === 401) {
-      errorMessage.value =
-        error.response.data?.message ||
-        "카카오 인증에 실패했습니다.";
-    } else if (error.response.status >= 500) {
-      errorMessage.value =
-        error.response.data?.message ||
-        "서버에서 로그인 처리 중 오류가 발생했습니다.";
-    } else {
-      errorMessage.value =
-        error.response.data?.message ||
-        error.message ||
-        "카카오 로그인 처리 중 오류가 발생했습니다.";
+      fallbackMessage = error.message || "백엔드 서버에 연결할 수 없습니다.";
+    } else if (status === 400) {
+      fallbackMessage = "카카오 인가 코드가 유효하지 않습니다.";
+    } else if (status === 401) {
+      fallbackMessage = "카카오 인증에 실패했습니다.";
+    } else if (status >= 500) {
+      fallbackMessage = "서버에서 로그인 처리 중 오류가 발생했습니다.";
     }
+
+    errorMessage.value = getErrorMessage(error, fallbackMessage);
   } finally {
     isLoading.value = false;
   }
