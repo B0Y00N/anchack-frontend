@@ -20,7 +20,8 @@ const routes = [
     meta: { guestOnly: true },
   },
   {
-    path: '/oauth/callback/kakao',
+    path: '/auth/kakao/callback',
+    alias: '/oauth/callback/kakao',
     name: 'kakao-callback',
     component: () => import('../user/views/KakaoCallback.vue'),
   },
