@@ -25,6 +25,7 @@ function persist(store) {
         conditionId: store.conditionId,
         recommendations: store.recommendations,
         detailsById: store.detailsById,
+        filterFunnel: store.filterFunnel,
       }),
     );
   } catch {
@@ -43,6 +44,10 @@ export const useRecommendationStore = defineStore("recommendation", {
     // adminDongId -> 상세 정보(P1-b: 월세 시세/치안/생활 인프라). 상세보기·비교 화면에서 쓴다.
     detailsById: persisted?.detailsById ?? {},
     detailsStatus: persisted && Object.keys(persisted.detailsById ?? {}).length > 0 ? "success" : "idle",
+    // 필터링 단계별 남은 동 개수(P3, API_USER_CONDITIONS_REVISION_REQUEST.md 참고).
+    // 백엔드가 아직 안 내려주는 응답에서는 undefined라 null로 정규화한다 - SearchLoading.vue가
+    // 이 값의 유무로 결과 퍼널 화면을 보여줄지(있으면) 바로 결과로 넘어갈지(없으면) 결정한다.
+    filterFunnel: persisted?.filterFunnel ?? null,
   }),
   actions: {
     async submit(appState) {
@@ -55,6 +60,7 @@ export const useRecommendationStore = defineStore("recommendation", {
 
         this.conditionId = res.data.data.conditionId;
         this.recommendations = res.data.data.recommendations;
+        this.filterFunnel = res.data.data.filterFunnel ?? null;
         this.status = "success";
         persist(this);
 
@@ -62,6 +68,7 @@ export const useRecommendationStore = defineStore("recommendation", {
       } catch (error) {
         this.conditionId = null;
         this.recommendations = [];
+        this.filterFunnel = null;
         this.status = "error";
         // 401은 스프링 시큐리티 필터가 앱 공통 에러 포맷({error:{message}}) 이전에
         // 자체 포맷({message})으로 응답하므로 두 형태를 모두 확인한다.
@@ -84,6 +91,9 @@ export const useRecommendationStore = defineStore("recommendation", {
 
         this.conditionId = conditionId;
         this.recommendations = res.data.data;
+        // 캐시된 결과를 그대로 보여주는 흐름이라 온보딩 로딩 화면(/search/loading)을
+        // 거치지 않는다 - filterFunnel은 그 화면에서만 쓰여서 항상 비운다.
+        this.filterFunnel = null;
         this.status = "success";
         persist(this);
 
@@ -91,6 +101,7 @@ export const useRecommendationStore = defineStore("recommendation", {
       } catch (error) {
         this.conditionId = null;
         this.recommendations = [];
+        this.filterFunnel = null;
         this.status = "error";
         this.errorMessage =
           error.response?.data?.error?.message ||
@@ -111,6 +122,7 @@ export const useRecommendationStore = defineStore("recommendation", {
 
         this.conditionId = res.data.data.conditionId;
         this.recommendations = res.data.data.recommendations;
+        this.filterFunnel = res.data.data.filterFunnel ?? null;
         this.status = "success";
         persist(this);
 
@@ -118,6 +130,7 @@ export const useRecommendationStore = defineStore("recommendation", {
       } catch (error) {
         this.conditionId = null;
         this.recommendations = [];
+        this.filterFunnel = null;
         this.status = "error";
         this.errorMessage =
           error.response?.data?.error?.message ||
@@ -153,6 +166,7 @@ export const useRecommendationStore = defineStore("recommendation", {
       this.status = "idle";
       this.conditionId = null;
       this.recommendations = [];
+      this.filterFunnel = null;
       this.errorMessage = "";
       this.detailsById = {};
       this.detailsStatus = "idle";

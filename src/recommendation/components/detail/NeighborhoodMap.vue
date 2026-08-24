@@ -1,3 +1,4 @@
+```
 <script>
 import { getAdminDongPlaces } from '@/region/api/neighborhood.js'
 
@@ -48,9 +49,21 @@ const CATEGORY_CONFIG = {
   ],
   safety: [
     { label: 'CCTV', color: '#546E7A', emoji: '📷', dbCategories: ['CCTV'], anonymous: true },
-    { label: '가로등', color: '#F59E0B', emoji: '💡', dbCategories: ['STREET_LIGHT'], anonymous: true },
+    {
+      label: '가로등',
+      color: '#F59E0B',
+      emoji: '💡',
+      dbCategories: ['STREET_LIGHT'],
+      anonymous: true,
+    },
     { label: '경찰서/지구대', color: '#1565C0', emoji: '🚔', dbCategories: ['POLICE'] },
-    { label: '안전비상벨', color: '#E53935', emoji: '🚨', dbCategories: ['SAFETY_BELL'], anonymous: true },
+    {
+      label: '안전비상벨',
+      color: '#E53935',
+      emoji: '🚨',
+      dbCategories: ['SAFETY_BELL'],
+      anonymous: true,
+    },
   ],
   transit: [
     { label: '지하철역', color: '#1976D2', emoji: '🚇', dbCategories: ['SUBWAY_STATION'] },
@@ -260,7 +273,12 @@ function renderMarkers() {
       .filter((p) => cat.dbCategories.includes(p.category))
       .slice(0, MAX_MARKERS_PER_CATEGORY)
       .forEach((place) => {
-        const overlay = createMarkerOverlay(place.lat, place.lng, cat, cat.anonymous ? null : place.name)
+        const overlay = createMarkerOverlay(
+          place.lat,
+          place.lng,
+          cat,
+          cat.anonymous ? null : place.name,
+        )
         overlay.setMap(kakaoMapInstance)
         overlays.push(overlay)
       })
@@ -317,7 +335,9 @@ watch(active, () => {
       <h4 class="font-semibold text-foreground text-sm">
         {{ dong }} 주변 {{ modeLabel[mode] }} 지도
       </h4>
-      <span class="text-xs text-muted-foreground bg-muted px-2.5 py-1 rounded-full">실제 장소 데이터</span>
+      <span class="text-xs text-muted-foreground bg-muted px-2.5 py-1 rounded-full"
+      >실제 장소 데이터</span
+      >
     </div>
 
     <div class="px-5 py-3 border-b border-border/50 flex flex-wrap gap-2">
@@ -423,3 +443,5 @@ watch(active, () => {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
 }
 </style>
+
+```
