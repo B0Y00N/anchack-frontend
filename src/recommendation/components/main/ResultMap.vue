@@ -2,23 +2,24 @@
 import { ref, watch, onMounted, onBeforeUnmount } from 'vue'
 import { loadSeoulGeojson } from '@/common/utils/loadSeoulGeojson.js'
 import { loadKakaoMap } from '@/common/utils/loadKakaoMap.js'
+import { buildDistrictOutlinePaths } from '@/common/utils/buildDistrictOutlinePaths.js'
 
 const props = defineProps({
-  highlighted: { type: String, default: '증산동' },
+  focusedAdminDongId: { type: Number, default: null },
   modelValue: { type: Array, default: () => [] },
   max: { type: Number, default: 2 },
   recommendations: {
     type: Array,
     default: () => [
-      { id: '증산동', district: '은평구', lat: 37.5838, lng: 126.9095 },
-      { id: '응암1동', district: '은평구', lat: 37.5987, lng: 126.923 },
-      { id: '망원2동', district: '마포구', lat: 37.5561, lng: 126.9042 },
-      { id: '신정3동', district: '양천구', lat: 37.5145, lng: 126.845 },
-      { id: '구로2동', district: '구로구', lat: 37.4945, lng: 126.8815 },
+      { id: 1, district: '은평구', dongName: '증산동', lat: 37.5838, lng: 126.9095 },
+      { id: 2, district: '은평구', dongName: '응암1동', lat: 37.5987, lng: 126.923 },
+      { id: 3, district: '마포구', dongName: '망원2동', lat: 37.5561, lng: 126.9042 },
+      { id: 4, district: '양천구', dongName: '신정3동', lat: 37.5145, lng: 126.845 },
+      { id: 5, district: '구로구', dongName: '구로2동', lat: 37.4945, lng: 126.8815 },
     ],
   },
 })
-const emit = defineEmits(['update:modelValue', 'select-dong'])
+const emit = defineEmits(['update:modelValue', 'toggle-focus', 'force-focus'])
 
 // document.getElementById('step-map') 하드코딩 대신 template ref 사용
 // (같은 컴포넌트 인스턴스가 2개 이상 존재해도 서로 다른 DOM을 정확히 참조)
@@ -28,58 +29,26 @@ const mapContainer = ref(null)
 const isLoading = ref(true)
 const loadError = ref(false)
 
-// v-model="selectedDistricts" 비교 선택 기능
-function toggleSelectDistrict(id) {
-  const current = [...props.modelValue]
-  const idx = current.indexOf(id)
-
-  if (idx !== -1) {
-    current.splice(idx, 1)
-  } else {
-    if (current.length >= props.max) {
-      current.shift() // 최대 개수를 넘으면 가장 먼저 선택한 항목을 밀어냄
-    }
-    current.push(id)
-  }
-
-  emit('update:modelValue', current)
-}
-
 let districtPolygonMap = {}
 let originalPolygonColors = {}
+let districtBoundsMap = {}
 let dongBoundsMap = {}
 let dongPathsMap = {}
 let selectedDongPolygon = null
 let kakaoMapInstance = null
 let overlays = []
-let lastHighlightedId = props.highlighted
+let districtOutlineList = []
+
+function createDongKey(district, dongName) {
+  return `${district}:${String(dongName ?? '').replace(/제(\d+동)$/, '$1')}`
+}
 
 const RAINBOW_25_COLORS = [
-  '#FF0000',
-  '#FF7F00',
-  '#FFD700',
-  '#00CC00',
-  '#00FFFF',
-  '#0000FF',
-  '#8B00FF',
-  '#FF1493',
-  '#ADFF2F',
-  '#FF4500',
-  '#FFFF00',
-  '#008000',
-  '#1E90FF',
-  '#4B0082',
-  '#EE82EE',
-  '#DC143C',
-  '#FF8C00',
-  '#20B2AA',
-  '#4169E1',
-  '#9400D3',
-  '#FF69B4',
-  '#00FA9A',
-  '#00BFFF',
-  '#9932CC',
-  '#32CD32',
+  '#C9675B', '#D38A4C', '#C8A44A', '#6F9876', '#5E9FA5',
+  '#5E83B3', '#8A6AA8', '#C26F8C', '#8A7B5B', '#C76E4D',
+  '#967852', '#5B8B68', '#B7825A', '#76639A', '#AD789B',
+  '#B85D63', '#BE8744', '#52968E', '#667EAF', '#895B9F',
+  '#C97D9E', '#5D7F76', '#5C9ABB', '#B86C78', '#748168',
 ]
 
 // 카카오맵 지도 레벨은 정수(1~14)만 지원한다.
@@ -87,6 +56,7 @@ const RAINBOW_25_COLORS = [
 // (예: .../latest/8.45/42/20.png) 존재하지 않는 디렉토리를 요청하게 되어
 // 타일 서버가 전부 400을 반환하고, 기본 축척 표시도 NaN으로 깨진다.
 const INITIAL_ZOOM_LEVEL = 9
+const LABEL_VISIBLE_MAX_LEVEL = 9
 
 // 컴포넌트가 이미 언마운트된 뒤에 도착하는 비동기 콜백(SDK 로드, geojson fetch,
 // setTimeout)이 사라진 컨테이너에 지도를 다시 붙이는 것을 막기 위한 플래그.
@@ -116,18 +86,23 @@ function initMap() {
 
   districtPolygonMap = {}
   originalPolygonColors = {}
+  districtBoundsMap = {}
   dongBoundsMap = {}
   dongPathsMap = {}
-  if (selectedDongPolygon) {
-    selectedDongPolygon.setMap(null)
-    selectedDongPolygon = null
-  }
+  districtOutlineList.forEach((outline) => outline.setMap(null))
+  districtOutlineList = []
+  clearSelectedDongPolygon()
 
   const map = new window.kakao.maps.Map(container, {
     center: new window.kakao.maps.LatLng(37.5665, 126.978),
     level: INITIAL_ZOOM_LEVEL,
+    // 추천 결과 지도는 휠 확대·축소는 유지하고 더블클릭 확대만 막는다.
+    disableDoubleClickZoom: true,
   })
   kakaoMapInstance = map
+  // 한반도 수준보다 멀리 축소되지 않도록 제한한다.
+  map.setMaxLevel(12)
+  window.kakao.maps.event.addListener(map, 'zoom_changed', updateOverlayVisibility)
 
   // 카카오맵 이용약관상 로고/저작권 표기는 항상 노출되어야 하므로,
   // DOM에서 임의로 지우지 않고 공식 API로 위치만 조정한다.
@@ -173,16 +148,20 @@ function initMap() {
         if (!districtPathsMap[sigName]) {
           districtPathsMap[sigName] = []
         }
+        if (!districtBoundsMap[sigName]) {
+          districtBoundsMap[sigName] = new window.kakao.maps.LatLngBounds()
+        }
 
         // 동 단위로 정확히 확대(fit)하고 경계선을 그릴 수 있도록
         // 동별 경계(bounds)와 실제 좌표 경로(paths)를 별도로 누적
-        if (dongName && !dongBoundsMap[dongName]) {
-          dongBoundsMap[dongName] = new window.kakao.maps.LatLngBounds()
+        const dongKey = dongName ? createDongKey(sigName, dongName) : null
+        if (dongKey && !dongBoundsMap[dongKey]) {
+          dongBoundsMap[dongKey] = new window.kakao.maps.LatLngBounds()
         }
-        if (dongName && !dongPathsMap[dongName]) {
-          dongPathsMap[dongName] = []
+        if (dongKey && !dongPathsMap[dongKey]) {
+          dongPathsMap[dongKey] = []
         }
-        const dongBounds = dongName ? dongBoundsMap[dongName] : null
+        const dongBounds = dongKey ? dongBoundsMap[dongKey] : null
 
         const coordinates = feature.geometry.coordinates
 
@@ -192,6 +171,7 @@ function initMap() {
             const latLng = new window.kakao.maps.LatLng(coord[1], coord[0])
             path.push(latLng)
             if (dongBounds) dongBounds.extend(latLng)
+            districtBoundsMap[sigName].extend(latLng)
           })
           return path
         }
@@ -200,36 +180,52 @@ function initMap() {
           coordinates.forEach((polygon) => {
             const path = processCoords(polygon[0])
             districtPathsMap[sigName].push(path)
-            if (dongName) dongPathsMap[dongName].push(path)
+            if (dongKey) dongPathsMap[dongKey].push(path)
           })
         } else {
           const path = processCoords(coordinates[0])
           districtPathsMap[sigName].push(path)
-          if (dongName) dongPathsMap[dongName].push(path)
+          if (dongKey) dongPathsMap[dongKey].push(path)
         }
       })
 
       Object.keys(districtPathsMap).forEach((sigName) => {
         const paths = districtPathsMap[sigName]
         const assignedColor = districtColorMap[sigName] || '#FF0000'
+        const isRecommendedDistrict = props.recommendations.some((item) => item.district === sigName)
 
         originalPolygonColors[sigName] = assignedColor
 
         const polygon = new window.kakao.maps.Polygon({
           path: paths,
-          strokeWeight: 0.8,
-          strokeColor: '#555555',
-          strokeOpacity: 0.4,
+          strokeWeight: 1,
+          strokeColor: '#FFFDF8',
+          strokeOpacity: 0.95,
           fillColor: assignedColor,
-          fillOpacity: 0.4,
+          fillOpacity: isRecommendedDistrict ? 0.65 : 0,
         })
 
         districtPolygonMap[sigName] = polygon
         polygon.setMap(map)
       })
 
-      // 최초 로드 시에는 하이라이트만 표시하고, 확대는 하지 않음
-      renderRecommendationOverlays(props.highlighted, false)
+      const districtOutlinePaths = buildDistrictOutlinePaths(geojson, window.kakao.maps)
+      Object.values(districtOutlinePaths).forEach((paths) => {
+        paths.forEach((path) => {
+          const outline = new window.kakao.maps.Polyline({
+            path,
+            strokeWeight: 2.5,
+            strokeColor: '#1F2937',
+            strokeOpacity: 0.9,
+          })
+          outline.setZIndex(10)
+          outline.setMap(map)
+          districtOutlineList.push(outline)
+        })
+      })
+
+      renderMapLabels()
+      if (props.focusedAdminDongId != null) focusOnDong(props.focusedAdminDongId)
       isLoading.value = false
     })
     .catch((err) => {
@@ -240,31 +236,33 @@ function initMap() {
     })
 }
 
-function renderRecommendationOverlays(targetId, shouldPan = false) {
-  if (!kakaoMapInstance) return
-  lastHighlightedId = targetId
-
-  overlays.forEach((o) => o.setMap(null))
+function clearOverlays() {
+  overlays.forEach((overlay) => overlay.setMap(null))
   overlays = []
+}
 
-  let targetItemCoords = null
+function clearSelectedDongPolygon() {
+  if (!selectedDongPolygon) return
+  selectedDongPolygon.setMap(null)
+  selectedDongPolygon = null
+}
 
+function renderMapLabels() {
+  if (!kakaoMapInstance) return
+  clearOverlays()
+
+  // 기존 방식으로 되돌린다: 추천 결과 동 이름표를 모두 만들고 지도 레벨 1~8에서 표시한다.
   props.recommendations.forEach((item) => {
     const latLng = new window.kakao.maps.LatLng(item.lat, item.lng)
-    const isHigh = item.id === targetId
-
-    if (isHigh) {
-      targetItemCoords = latLng
-    }
-
     const nodeDiv = document.createElement('div')
     const isSelected = props.modelValue.includes(item.id)
-    nodeDiv.className = `dong-badge ${isHigh ? 'highlighted' : 'normal'} ${isSelected ? 'selected' : ''}`
-    nodeDiv.innerText = item.id
+    const isFocused = item.id === props.focusedAdminDongId
+    nodeDiv.className = `dong-badge ${isFocused ? 'highlighted' : 'normal'} ${isSelected ? 'selected' : ''}`
+    nodeDiv.innerText = item.dongName
     nodeDiv.onclick = (e) => {
       e.stopPropagation()
-      focusOnDong(item.id)
-      toggleSelectDistrict(item.id)
+      // 현재 확대 레벨과 무관하게 해당 동이 속한 구를 6레벨로 다시 포커싱한다.
+      emit('force-focus', item.id)
     }
 
     const customOverlay = new window.kakao.maps.CustomOverlay({
@@ -277,28 +275,28 @@ function renderRecommendationOverlays(targetId, shouldPan = false) {
     overlays.push(customOverlay)
   })
 
-  if (shouldPan && targetItemCoords) {
-    kakaoMapInstance.panTo(targetItemCoords)
-  }
+  updateOverlayVisibility()
+}
+
+function updateOverlayVisibility() {
+  if (!kakaoMapInstance) return
+  const isVisible = kakaoMapInstance.getLevel() <= LABEL_VISIBLE_MAX_LEVEL
+  overlays.forEach((overlay) => overlay.setVisible(isVisible))
 }
 
 // dongBoundsMap에 정확한 경계가 없을 때(목데이터 등) 사용할 폴백 확대 레벨
-const FOCUS_ZOOM_LEVEL = 4
+const FOCUS_ZOOM_LEVEL = 6
 
 // mockData의 표기(예: '구로제2동')와 실제 geojson 행정동명(예: '구로2동')이
 // 다를 수 있어, '제N동' 형태를 'N동'으로 바꿔서도 한 번 더 찾아본다.
-function resolveDongKey(id) {
-  if (dongBoundsMap[id]) return id
-  const normalized = id.replace(/제(\d+동)$/, '$1')
-  return dongBoundsMap[normalized] ? normalized : id
+function resolveDongKey(district, dongName) {
+  const key = createDongKey(district, dongName)
+  return dongBoundsMap[key] ? key : null
 }
 
 // 선택된 동의 실제 행정 경계선을 지도 위에 그려서 강조 표시
-function highlightDongBoundary(key) {
-  if (selectedDongPolygon) {
-    selectedDongPolygon.setMap(null)
-    selectedDongPolygon = null
-  }
+function highlightDongBoundary(key, districtName) {
+  clearSelectedDongPolygon()
 
   const paths = dongPathsMap[key]
   if (!paths || !kakaoMapInstance) return
@@ -306,56 +304,77 @@ function highlightDongBoundary(key) {
   selectedDongPolygon = new window.kakao.maps.Polygon({
     path: paths,
     strokeWeight: 3,
-    strokeColor: '#2D7A4F',
-    strokeOpacity: 0.9,
-    fillColor: '#2D7A4F',
-    fillOpacity: 0.25,
+    strokeColor: '#FFFDF8',
+    strokeOpacity: 1,
+    fillColor: originalPolygonColors[districtName] || '#64748B',
+    fillOpacity: 0.45,
   })
+  selectedDongPolygon.setZIndex(5)
   selectedDongPolygon.setMap(kakaoMapInstance)
 }
 
-// 뱃지 클릭(또는 외부에서 highlighted prop 변경) 시
-// 해당 동의 "경계(바운더리)"에 딱 맞춰 자동으로 확대되도록 처리
-function moveToDong(lat, lng, id) {
+function setDistrictFillOpacity(showRecommendedDistricts) {
+  const recommendedDistricts = new Set(props.recommendations.map((item) => item.district))
+  Object.entries(districtPolygonMap).forEach(([districtName, polygon]) => {
+    polygon.setOptions({
+      fillOpacity: showRecommendedDistricts && recommendedDistricts.has(districtName) ? 0.65 : 0,
+    })
+  })
+}
+
+// 카드에서 특정 결과를 선택하면 해당 동이 속한 구를 포커싱하고,
+// 선택한 동만 반투명하게 표시한다.
+function focusOnDong(id) {
   if (!kakaoMapInstance) return
 
-  const key = resolveDongKey(id)
-  const bounds = dongBoundsMap[key]
-  if (bounds && !bounds.isEmpty()) {
-    // 실제 행정동 경계(geojson)에 맞춰 딱 그 동만 보이도록 확대
-    kakaoMapInstance.setBounds(bounds)
-    highlightDongBoundary(key)
-  } else {
-    // geojson에 없는 동(목데이터 등)은 좌표 기준으로 이동 후 확대
-    const moveLatLon = new window.kakao.maps.LatLng(lat, lng)
-    kakaoMapInstance.panTo(moveLatLon)
+  const target = props.recommendations.find((item) => item.id === id)
+  if (!target) return
+
+  const districtBounds = districtBoundsMap[target.district]
+  const key = resolveDongKey(target.district, target.dongName)
+  if (districtBounds && !districtBounds.isEmpty()) {
+    kakaoMapInstance.setBounds(districtBounds)
     kakaoMapInstance.setLevel(FOCUS_ZOOM_LEVEL)
-    if (selectedDongPolygon) {
-      selectedDongPolygon.setMap(null)
-      selectedDongPolygon = null
+    highlightDongBoundary(key, target.district)
+  } else {
+    const bounds = dongBoundsMap[key]
+    if (bounds && !bounds.isEmpty()) {
+      kakaoMapInstance.setBounds(bounds)
+      kakaoMapInstance.setLevel(FOCUS_ZOOM_LEVEL)
+      highlightDongBoundary(key, target.district)
+    } else {
+      // GeoJSON에 없는 동(목데이터 등)은 API 좌표 기준으로 이동한다.
+      const moveLatLon = new window.kakao.maps.LatLng(target.lat, target.lng)
+      kakaoMapInstance.panTo(moveLatLon)
+      kakaoMapInstance.setLevel(FOCUS_ZOOM_LEVEL)
+      clearSelectedDongPolygon()
     }
   }
 
-  renderRecommendationOverlays(id, false)
+  setDistrictFillOpacity(false)
+  renderMapLabels()
 }
 
-// id로 recommendations에서 좌표를 찾아 이동+확대까지 한 번에 처리하는 헬퍼
-function focusOnDong(id) {
-  const target = props.recommendations.find((item) => item.id === id)
-  if (!target) return
-  moveToDong(target.lat, target.lng, id)
-  emit('select-dong', id)
+function resetMapView() {
+  if (!kakaoMapInstance) return
+  clearSelectedDongPolygon()
+  setDistrictFillOpacity(true)
+  kakaoMapInstance.setCenter(new window.kakao.maps.LatLng(37.5665, 126.978))
+  kakaoMapInstance.setLevel(INITIAL_ZOOM_LEVEL)
+  renderMapLabels()
 }
 
 watch(
-  () => props.highlighted,
-  (newVal) => {
-    // 외부(부모)에서 highlighted 값이 바뀌어도(예: 목록에서 동 이름 클릭)
-    // 지도가 해당 동으로 자동 확대/이동되도록 처리
-    if (kakaoMapInstance) {
-      focusOnDong(newVal)
-    }
+  [() => props.focusedAdminDongId, () => props.recommendations],
+  ([focusedAdminDongId]) => {
+    if (!kakaoMapInstance) return
+    const hasFocusedResult =
+      focusedAdminDongId != null && props.recommendations.some((item) => item.id === focusedAdminDongId)
+
+    if (hasFocusedResult) focusOnDong(focusedAdminDongId)
+    else resetMapView()
   },
+  { deep: true },
 )
 
 watch(
@@ -363,7 +382,7 @@ watch(
   () => {
     // 비교 선택(v-model) 상태가 바뀌면 뱃지의 선택 표시를 다시 그린다
     if (kakaoMapInstance) {
-      renderRecommendationOverlays(lastHighlightedId, false)
+      renderMapLabels()
     }
   },
   { deep: true },
@@ -372,14 +391,12 @@ watch(
 onBeforeUnmount(() => {
   disposed = true
   // 라우트 이동 시 폴리곤/오버레이가 지도 인스턴스와 함께 누수되는 것을 방지한다.
-  overlays.forEach((o) => o.setMap(null))
-  overlays = []
+  clearOverlays()
   Object.values(districtPolygonMap).forEach((polygon) => polygon.setMap(null))
   districtPolygonMap = {}
-  if (selectedDongPolygon) {
-    selectedDongPolygon.setMap(null)
-    selectedDongPolygon = null
-  }
+  districtOutlineList.forEach((outline) => outline.setMap(null))
+  districtOutlineList = []
+  clearSelectedDongPolygon()
   kakaoMapInstance = null
 })
 </script>
@@ -420,34 +437,29 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   font-family: 'Noto Sans KR', sans-serif;
-  border-radius: 6px;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid #cbd5e1;
+  color: #1e293b;
+  font-weight: 600;
+  font-size: 13.2px;
+  padding: 2.4px 7.2px;
+  border-radius: 4.8px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
   white-space: nowrap;
   user-select: none;
-  padding: 4px 10px;
   cursor: pointer;
-  transition: all 0.2s ease-in-out;
+  transition: all 0.2s ease;
 }
 
 :deep(.dong-badge:hover) {
-  transform: scale(1.1);
+  background: #1a73e8;
+  color: white;
+  border-color: #1a73e8;
+  transform: scale(1.05);
 }
 
 :deep(.dong-badge.highlighted) {
-  background-color: #2d7a4f;
-  color: white;
-  font-size: 12px;
   font-weight: 700;
-  border: 2px solid white;
-  box-shadow: 0 4px 10px rgba(45, 122, 79, 0.4);
-}
-
-:deep(.dong-badge.normal) {
-  background-color: #52b37a;
-  color: white;
-  font-size: 11px;
-  font-weight: 600;
-  border: 2px solid white;
 }
 
 :deep(.dong-badge.selected) {

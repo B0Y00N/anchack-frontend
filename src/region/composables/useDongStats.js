@@ -14,6 +14,7 @@ export function useDongStats(district, dong) {
     crimeRate: +(2.8 - (h % 6) * 0.25).toFixed(1),
     gyms: 1 + (h % 4), convenience: 3 + (h % 6), hospitals: 1 + (h % 3), parks: 1 + (h % 3),
     pharmacies: 1 + (h % 3), banks: 1 + (h % 4), cafes: 4 + (h % 8),
+    department: h % 3, mart: 1 + (h % 3),
     subwayLine: ["2호선", "4호선", "6호선", "7호선", "경의중앙선"][h % 5],
     avgCommute: 32 + (h % 18),
     population: 7500 + h * 350,

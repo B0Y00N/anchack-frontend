@@ -20,6 +20,13 @@ export const useNeighborhoodStore = defineStore("neighborhood", {
     removeFromCompare(id) {
       this.compareList = this.compareList.filter((x) => x !== id);
     },
+    resetCompare() {
+      this.compareList = [];
+    },
+    retainCompare(ids) {
+      const validIds = new Set(ids);
+      this.compareList = this.compareList.filter((id) => validIds.has(id));
+    },
     selectDistrict(district) {
       this.selectedDistrict = district;
       this.selectedDong = null;

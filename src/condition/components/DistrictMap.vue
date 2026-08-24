@@ -3,6 +3,7 @@ import { ref, watch, onMounted, onBeforeUnmount } from 'vue'
 import { X } from 'lucide-vue-next'
 import { loadSeoulGeojson } from '@/common/utils/loadSeoulGeojson.js'
 import { loadKakaoMap } from '@/common/utils/loadKakaoMap.js'
+import { buildDistrictOutlinePaths } from '@/common/utils/buildDistrictOutlinePaths.js'
 import { useMapLoadState } from '@/common/composables/useMapLoadState.js'
 
 const props = defineProps({
@@ -20,36 +21,17 @@ let districtPolygonMap = {}
 let originalPolygonColors = {}
 let complementaryPolygonColors = {}
 let kakaoMapInstance = null
+let districtOutlineList = []
 
 // document.getElementById('step-map') 하드코딩 충돌 방지를 위한 template ref 사용
 const mapContainer = ref(null)
 
 const RAINBOW_25_COLORS = [
-  '#FF0000',
-  '#FF7F00',
-  '#FFD700',
-  '#00CC00',
-  '#00FFFF',
-  '#0000FF',
-  '#8B00FF',
-  '#FF1493',
-  '#ADFF2F',
-  '#FF4500',
-  '#FFFF00',
-  '#008000',
-  '#1E90FF',
-  '#4B0082',
-  '#EE82EE',
-  '#DC143C',
-  '#FF8C00',
-  '#20B2AA',
-  '#4169E1',
-  '#9400D3',
-  '#FF69B4',
-  '#00FA9A',
-  '#00BFFF',
-  '#9932CC',
-  '#32CD32',
+  '#C9675B', '#D38A4C', '#C8A44A', '#6F9876', '#5E9FA5',
+  '#5E83B3', '#8A6AA8', '#C26F8C', '#8A7B5B', '#C76E4D',
+  '#967852', '#5B8B68', '#B7825A', '#76639A', '#AD789B',
+  '#B85D63', '#BE8744', '#52968E', '#667EAF', '#895B9F',
+  '#C97D9E', '#5D7F76', '#5C9ABB', '#B86C78', '#748168',
 ]
 
 function getComplementaryColor(hex) {
@@ -87,7 +69,7 @@ function toggle(id) {
   }
 }
 
-watch([() => props.modelValue, hoveredDistrict], () => {
+function updateDistrictStyles() {
   Object.keys(districtPolygonMap).forEach((sigName) => {
     const polygon = districtPolygonMap[sigName]
     if (!polygon) return
@@ -95,20 +77,19 @@ watch([() => props.modelValue, hoveredDistrict], () => {
     const fullDistrictName = sigName.endsWith('구') ? sigName : sigName + '구'
     const sel = isSelected(fullDistrictName)
     const hov = hoveredDistrict.value === fullDistrictName
+    const hasSelection = props.modelValue.length > 0
     const isMaxReached = props.modelValue.length >= props.max
     const isDisabled = !sel && isMaxReached
 
     let fillColor = originalPolygonColors[sigName] || '#FF0000'
-    let fillOpacity = 0.4
+    let fillOpacity = hasSelection ? (sel ? 0.8 : 0) : 0.8
 
-    if (sel) {
-      fillOpacity = 0.75
-    } else if (isDisabled) {
+    if (hasSelection && isDisabled) {
       fillColor = '#E2E8F0'
-      fillOpacity = 0.35
-    } else if (hov) {
+      fillOpacity = 0
+    } else if (hov && (!hasSelection || sel)) {
       fillColor = complementaryPolygonColors[sigName] || '#00FFFF'
-      fillOpacity = 0.85
+      fillOpacity = 0.95
     }
 
     polygon.setOptions({
@@ -116,7 +97,9 @@ watch([() => props.modelValue, hoveredDistrict], () => {
       fillOpacity: fillOpacity,
     })
   })
-})
+}
+
+watch([() => props.modelValue, hoveredDistrict], updateDistrictStyles)
 
 // 컴포넌트 언마운트 후 비동기 콜백 실행 방지 플래그
 let disposed = false
@@ -148,10 +131,13 @@ function initMap() {
   districtPolygonMap = {}
   originalPolygonColors = {}
   complementaryPolygonColors = {}
+  districtOutlineList.forEach((outline) => outline.setMap(null))
+  districtOutlineList = []
 
   const map = new window.kakao.maps.Map(container, {
     center: new window.kakao.maps.LatLng(37.5665, 126.978),
-    level: 9, // 첫 번째 코드의 지도 레벨 유지 (필요시 10으로 변경 가능)
+    level: 9, // 전국 구 선택용 기본 축척
+    disableDoubleClickZoom: true,
   })
   kakaoMapInstance = map
 
@@ -237,11 +223,12 @@ function initMap() {
 
         const polygon = new window.kakao.maps.Polygon({
           path: paths,
-          strokeWeight: 0.8,
-          strokeColor: '#555555',
-          strokeOpacity: 0.4,
+          // 행정동 구분은 남기되, 색 면적 위에서 흰 선이 과하게 도드라지지 않도록 얇고 은은하게 표시한다.
+          strokeWeight: 1,
+          strokeColor: '#FFFDF8',
+          strokeOpacity: 0.5,
           fillColor: assignedColor,
-          fillOpacity: 0.4,
+          fillOpacity: 0.8,
         })
 
         districtPolygonMap[sigName] = polygon
@@ -254,12 +241,6 @@ function initMap() {
             hoveredDistrict.value = null
           }
         })
-        window.kakao.maps.event.addListener(polygon, 'click', () => {
-          const isMax = props.modelValue.length >= props.max
-          if (isMax && !isSelected(fullDistrictName)) return
-          toggle(fullDistrictName)
-        })
-
         polygon.setMap(map)
 
         const cData = districtCenterCalc[sigName]
@@ -286,6 +267,22 @@ function initMap() {
           customOverlay.setMap(map)
         }
       })
+
+      const districtOutlinePaths = buildDistrictOutlinePaths(geojson, window.kakao.maps)
+      Object.values(districtOutlinePaths).forEach((paths) => {
+        paths.forEach((path) => {
+          const outline = new window.kakao.maps.Polyline({
+            path,
+            strokeWeight: 2.5,
+            strokeColor: '#1F2937',
+            strokeOpacity: 0.9,
+          })
+          outline.setMap(map)
+          districtOutlineList.push(outline)
+        })
+      })
+
+      updateDistrictStyles()
 
       if (disposed) return
       markLoaded()
@@ -316,7 +313,7 @@ function initMap() {
     </div>
 
     <!-- 지도 컨테이너 및 로딩/에러 레이어 -->
-    <div class="relative w-full" style="height: 360px">
+  <div class="relative w-full" style="height: 540px">
       <div ref="mapContainer" class="w-full h-full rounded-xl overflow-hidden"></div>
 
       <!-- 로딩 중 스피너 표시 -->

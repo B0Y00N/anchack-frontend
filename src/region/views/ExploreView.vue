@@ -8,9 +8,9 @@ import ReviewWriteModal from '@/review/components/ReviewWriteModal.vue'
 import LoginRequiredModal from '@/common/components/LoginRequiredModal.vue'
 import { loadSeoulGeojson } from '@/common/utils/loadSeoulGeojson.js'
 import { loadKakaoMap } from '@/common/utils/loadKakaoMap.js'
+import { buildDistrictOutlinePaths } from '@/common/utils/buildDistrictOutlinePaths.js'
 import StarDisplay from '@/common/components/StarDisplay.vue'
 import BaseToast from '@/common/components/BaseToast.vue'
-import TheFooter from '@/common/components/TheFooter.vue'
 import { DONG_DATA } from '@/common/utils/mockData'
 import { useNeighborhoodStore } from '@/region/stores/useNeighborhoodStore'
 import { useMyPageStore } from '@/mypage/stores/useMyPageStore'
@@ -53,6 +53,10 @@ const dongList = computed(() => {
 })
 function selectDong(dong) {
   router.push(`/explore/${selectedDistrict.value}/${dong}`)
+}
+
+function backToDistrict() {
+  router.push(`/explore/${selectedDistrict.value}`)
 }
 
 /*
@@ -136,7 +140,10 @@ async function loadDongReviews(district, dong) {
 
   try {
     // 1) 화면에서 다루는 "구 이름 + 동 이름" 문자열을 실제 admin_dong_id로 변환
-    const adminDongRes = await getAdminDong(district, dong)
+    // GeoJSON은 "상계3·4동", 화면 목록은 "상계3,4동"처럼 표기하지만 DB에는
+    // "상계3.4동"으로 저장된 동이 있다. DB 조회에만 구분기호를 점으로 통일한다.
+    const adminDongQueryName = dong.replace(/[,·ㆍ]/g, '.')
+    const adminDongRes = await getAdminDong(district, adminDongQueryName)
     adminDong.value = adminDongRes.data
 
     // 2) admin_dong_id 기준으로 실제 DB에 저장된 리뷰 목록 조회
@@ -216,11 +223,6 @@ function goListings() {
   router.push('/search/results')
 }
 
-const legend = [
-  { color: '#FF00FF', label: '마우스 오버 (보색 반전)' },
-  { color: '#FF0000', label: '무지개 원색 구별' },
-  { color: '#A8D4E6', label: '한강' },
-]
 const emptyStateItems = [
   '치안·CCTV·범죄율 현황',
   '교통 접근성 및 통근시간',
@@ -232,33 +234,13 @@ const DISTRICT_OFFSETS = {
   중구: { latOffset: 0.001, lngOffset: 0.001 },
 }
 
-// 무지개 7색 기반 선명한 25가지 구별 색상
+// 형광 원색을 피한 웜·더스티 계열의 구별 색상
 const RAINBOW_25_COLORS = [
-  '#FF0000',
-  '#FF7F00',
-  '#FFD700',
-  '#00CC00',
-  '#00FFFF',
-  '#0000FF',
-  '#8B00FF',
-  '#FF1493',
-  '#ADFF2F',
-  '#FF4500',
-  '#FFFF00',
-  '#008000',
-  '#1E90FF',
-  '#4B0082',
-  '#EE82EE',
-  '#DC143C',
-  '#FF8C00',
-  '#20B2AA',
-  '#4169E1',
-  '#9400D3',
-  '#FF69B4',
-  '#00FA9A',
-  '#00BFFF',
-  '#9932CC',
-  '#32CD32',
+  '#C9675B', '#D38A4C', '#C8A44A', '#6F9876', '#5E9FA5',
+  '#5E83B3', '#8A6AA8', '#C26F8C', '#8A7B5B', '#C76E4D',
+  '#967852', '#5B8B68', '#B7825A', '#76639A', '#AD789B',
+  '#B85D63', '#BE8744', '#52968E', '#667EAF', '#895B9F',
+  '#C97D9E', '#5D7F76', '#5C9ABB', '#B86C78', '#748168',
 ]
 
 function getComplementaryColor(hex) {
@@ -285,9 +267,24 @@ let dongPolygonMap = {}
 let originalPolygonColors = {}
 let complementaryPolygonColors = {}
 let kakaoMapInstance = null
+let districtBoundsMap = {}
+let dongCenterMap = {}
+let dongHoverOverlay = null
+let dongHoverLabel = null
 // 구 이름 라벨(CustomOverlay)도 폴리곤과 함께 정리 대상에 넣는다.
 // (예전엔 이 목록이 없어서 언마운트/재초기화 시 라벨만 지도에 계속 남는 누수가 있었다)
 let mapOverlayList = []
+let districtOutlineList = []
+
+// 서울에는 서로 다른 구에 같은 이름의 동(예: 강남구/관악구 신사동)이 있다.
+// 지도 객체의 식별자는 화면에 보이는 동 이름만 쓰지 않고, 구 이름까지 포함해야
+// 한 동의 호버/색상 변경이 다른 구의 동 경계에 적용되지 않는다.
+function createDongKey(district, dongName) {
+  const normalizedDong = String(dongName ?? '')
+    .replace(/[\s,.·ㆍ]/g, '')
+    .replace(/제(\d+동)$/, '$1')
+  return `${district}:${normalizedDong}`
+}
 
 // initMap()이 다시 호출될 때마다(동 선택 해제로 전체 지도로 돌아올 때 등) 1씩 증가하는
 // 세션 번호. 언마운트뿐 아니라 "같은 컴포넌트 안에서 재초기화"되는 경우까지 함께 잡아내어,
@@ -299,21 +296,21 @@ let disposed = false
 
 // document.getElementById('map') 하드코딩 대신 template ref 사용
 const mapContainer = ref(null)
-const hoveredDongName = ref(null)
+const hoveredDongKey = ref(null)
 
-watch(hoveredDongName, (newDong, oldDong) => {
-  if (oldDong && dongPolygonMap[oldDong]) {
-    const originColor = originalPolygonColors[oldDong] || '#FF0000'
-    dongPolygonMap[oldDong].setOptions({
+watch(hoveredDongKey, (newKey, oldKey) => {
+  if (oldKey && dongPolygonMap[oldKey]) {
+    const originColor = originalPolygonColors[oldKey] || '#FF0000'
+    dongPolygonMap[oldKey].setOptions({
       fillColor: originColor,
-      fillOpacity: 0.4,
+      fillOpacity: 0.65,
     })
   }
-  if (newDong && dongPolygonMap[newDong]) {
-    const compColor = complementaryPolygonColors[newDong] || '#00FFFF'
-    dongPolygonMap[newDong].setOptions({
+  if (newKey && dongPolygonMap[newKey]) {
+    const compColor = complementaryPolygonColors[newKey] || '#00FFFF'
+    dongPolygonMap[newKey].setOptions({
       fillColor: compColor,
-      fillOpacity: 0.8,
+      fillOpacity: 0.95,
     })
   }
 })
@@ -350,13 +347,59 @@ onBeforeUnmount(() => {
 function clearMapObjects() {
   Object.values(dongPolygonMap).forEach((polygon) => polygon.setMap(null))
   mapOverlayList.forEach((overlay) => overlay.setMap(null))
+  districtOutlineList.forEach((outline) => outline.setMap(null))
 
   dongPolygonMap = {}
   originalPolygonColors = {}
   complementaryPolygonColors = {}
+  districtBoundsMap = {}
+  dongCenterMap = {}
+  dongHoverOverlay = null
+  dongHoverLabel = null
   mapOverlayList = []
-  hoveredDongName.value = null
+  districtOutlineList = []
+  hoveredDongKey.value = null
 }
+
+function focusDistrict(districtName) {
+  const bounds = districtBoundsMap[districtName]
+  if (kakaoMapInstance && bounds && !bounds.isEmpty()) {
+    kakaoMapInstance.setBounds(bounds)
+  }
+}
+
+function resetMapView() {
+  if (!kakaoMapInstance) return
+  kakaoMapInstance.setCenter(new window.kakao.maps.LatLng(37.5665, 126.978))
+  kakaoMapInstance.setLevel(9)
+}
+
+function toggleDistrict(districtName) {
+  selectedDistrict.value = selectedDistrict.value === districtName ? null : districtName
+}
+
+function showDongHoverLabel(dongKey, dongName, position = dongCenterMap[dongKey]) {
+  if (!dongHoverOverlay || !dongHoverLabel || !position) return
+  dongHoverLabel.textContent = dongName
+  dongHoverOverlay.setPosition(position)
+  dongHoverOverlay.setMap(kakaoMapInstance)
+}
+
+function setHoveredDong(dongKey, dongName, position) {
+  hoveredDongKey.value = dongKey
+  showDongHoverLabel(dongKey, dongName, position)
+}
+
+function clearHoveredDong(dongKey) {
+  if (hoveredDongKey.value !== dongKey) return
+  hoveredDongKey.value = null
+  dongHoverOverlay?.setMap(null)
+}
+
+watch(selectedDistrict, (districtName) => {
+  if (districtName) focusDistrict(districtName)
+  else resetMapView()
+})
 
 function initMap() {
   const container = mapContainer.value
@@ -370,7 +413,8 @@ function initMap() {
   // 타일 서버가 전부 400을 반환한다. 반드시 정수로만 넣는다.
   const map = new window.kakao.maps.Map(container, {
     center: new window.kakao.maps.LatLng(37.5665, 126.978),
-    level: 8,
+    level: 9,
+    disableDoubleClickZoom: true,
   })
   kakaoMapInstance = map
 
@@ -422,6 +466,15 @@ function initMap() {
         districtColorMap[sigName] = RAINBOW_25_COLORS[colorIdx]
       })
 
+      dongHoverLabel = document.createElement('div')
+      dongHoverLabel.className = 'dong-hover-label'
+      dongHoverOverlay = new window.kakao.maps.CustomOverlay({
+        content: dongHoverLabel,
+        xAnchor: 0.5,
+        yAnchor: 1.2,
+      })
+      mapOverlayList.push(dongHoverOverlay)
+
       geojson.features.forEach((feature) => {
         const fullName = feature.properties.adm_nm || ''
         const nameParts = fullName.split(' ')
@@ -429,20 +482,31 @@ function initMap() {
         const dongName = nameParts[2]
 
         if (!sigName || !dongName) return
+        const dongKey = createDongKey(sigName, dongName)
 
         if (!districtMap[sigName]) {
           districtMap[sigName] = { totalLat: 0, totalLng: 0, pointCount: 0 }
         }
+        if (!districtBoundsMap[sigName]) {
+          districtBoundsMap[sigName] = new window.kakao.maps.LatLngBounds()
+        }
+        const districtBounds = districtBoundsMap[sigName]
 
         const coordinates = feature.geometry.coordinates
         const paths = []
+        const dongCenter = { totalLat: 0, totalLng: 0, count: 0 }
 
         function processCoords(coordsArr) {
           const path = []
           coordsArr.forEach((coord) => {
             const lat = coord[1]
             const lng = coord[0]
-            path.push(new window.kakao.maps.LatLng(lat, lng))
+            const latLng = new window.kakao.maps.LatLng(lat, lng)
+            path.push(latLng)
+            districtBounds.extend(latLng)
+            dongCenter.totalLat += lat
+            dongCenter.totalLng += lng
+            dongCenter.count += 1
             districtMap[sigName].totalLat += lat
             districtMap[sigName].totalLng += lng
             districtMap[sigName].pointCount++
@@ -459,33 +523,54 @@ function initMap() {
         }
 
         const assignedColor = districtColorMap[sigName] || '#FF0000'
-        originalPolygonColors[dongName] = assignedColor
-        complementaryPolygonColors[dongName] = getComplementaryColor(assignedColor)
+        originalPolygonColors[dongKey] = assignedColor
+        complementaryPolygonColors[dongKey] = getComplementaryColor(assignedColor)
+        if (dongCenter.count > 0) {
+          dongCenterMap[dongKey] = new window.kakao.maps.LatLng(
+            dongCenter.totalLat / dongCenter.count,
+            dongCenter.totalLng / dongCenter.count,
+          )
+        }
 
         const polygon = new window.kakao.maps.Polygon({
           path: paths,
-          strokeWeight: 0.8,
-          strokeColor: '#555555',
-          strokeOpacity: 0.4,
+          strokeWeight: 1,
+          strokeColor: '#FFFDF8',
+          strokeOpacity: 0.5,
           fillColor: assignedColor,
-          fillOpacity: 0.4,
+          fillOpacity: 0.65,
         })
 
-        dongPolygonMap[dongName] = polygon
+        dongPolygonMap[dongKey] = polygon
 
-        window.kakao.maps.event.addListener(polygon, 'mouseover', () => {
-          hoveredDongName.value = dongName
+        window.kakao.maps.event.addListener(polygon, 'mouseover', (mouseEvent) => {
+          setHoveredDong(dongKey, dongName, mouseEvent.latLng)
+        })
+        window.kakao.maps.event.addListener(polygon, 'mousemove', (mouseEvent) => {
+          showDongHoverLabel(dongKey, dongName, mouseEvent.latLng)
         })
         window.kakao.maps.event.addListener(polygon, 'mouseout', () => {
-          if (hoveredDongName.value === dongName) {
-            hoveredDongName.value = null
-          }
+          clearHoveredDong(dongKey)
         })
         window.kakao.maps.event.addListener(polygon, 'click', () => {
-          selectedDistrict.value = sigName
+          if (selectedDistrict.value === sigName) selectDong(dongName)
         })
 
         polygon.setMap(map)
+      })
+
+      const districtOutlinePaths = buildDistrictOutlinePaths(geojson, window.kakao.maps)
+      Object.values(districtOutlinePaths).forEach((paths) => {
+        paths.forEach((path) => {
+          const outline = new window.kakao.maps.Polyline({
+            path,
+            strokeWeight: 2.5,
+            strokeColor: '#1F2937',
+            strokeOpacity: 0.9,
+          })
+          outline.setMap(map)
+          districtOutlineList.push(outline)
+        })
       })
 
       Object.keys(districtMap).forEach((sigName) => {
@@ -508,7 +593,7 @@ function initMap() {
 
         contentDiv.addEventListener('click', (e) => {
           e.stopPropagation()
-          selectedDistrict.value = sigName
+          toggleDistrict(sigName)
         })
 
         const customOverlay = new window.kakao.maps.CustomOverlay({
@@ -521,6 +606,8 @@ function initMap() {
         customOverlay.setMap(map)
         mapOverlayList.push(customOverlay)
       })
+
+      if (selectedDistrict.value) focusDistrict(selectedDistrict.value)
     })
     .catch((err) => {
       if (currentSession !== mapSession) return
@@ -546,7 +633,7 @@ function initMap() {
     />
     <BaseToast v-if="saveToast" :message="saveToast" @done="saveToast = null" />
 
-    <div class="border-b border-border bg-white sticky top-15 z-20">
+    <div class="shrink-0 border-b border-border bg-white">
       <ExploreHeader
         :district="selectedDistrict"
         :dong="selectedDong"
@@ -554,23 +641,23 @@ function initMap() {
         :avg-overall="dongAvgOverall"
         :review-count="dongReviewList.length"
         :is-saved="isDongSaved"
-        @back="router.push('/explore')"
+        @back="backToDistrict"
         @toggle-save="toggleSaveDong"
         @listings="goListings"
         @write-review="openReviewForm"
       />
-      <ExploreTabs
-        :district="selectedDistrict"
-        :dong="selectedDong"
-        :reviews="dongReviewList"
-        :stats="dongStats?.stats"
-        :hash="dongStats?.hash"
-        @write-review="openReviewForm"
-        @listings="goListings"
-      />
     </div>
+    <ExploreTabs
+      :district="selectedDistrict"
+      :dong="selectedDong"
+      :admin-dong-id="adminDong?.adminDongId"
+      :reviews="dongReviewList"
+      :stats="dongStats?.stats"
+      :hash="dongStats?.hash"
+      @write-review="openReviewForm"
+      @listings="goListings"
+    />
 
-    <TheFooter />
   </div>
 
   <!-- 구 선택 / 동 목록 화면 -->
@@ -579,15 +666,6 @@ function initMap() {
     <div class="flex-1 relative overflow-hidden bg-background">
       <div ref="mapContainer" class="w-full h-full"></div>
 
-      <div
-        class="absolute bottom-6 left-6 bg-white/90 backdrop-blur-sm rounded-2xl px-5 py-4 border border-border shadow-sm z-10"
-      >
-        <p class="text-xs font-bold text-foreground mb-3">범례</p>
-        <div v-for="l in legend" :key="l.label" class="flex items-center gap-2.5 mb-1.5">
-          <div class="w-3.5 h-3.5 rounded-sm" :style="{ background: l.color }" />
-          <span class="text-xs text-muted-foreground">{{ l.label }}</span>
-        </div>
-      </div>
       <div
         class="absolute top-4 right-6 bg-white/90 backdrop-blur-sm rounded-xl px-4 py-2.5 border border-border shadow-sm text-xs text-muted-foreground z-10"
       >
@@ -687,8 +765,8 @@ function initMap() {
                   v-for="dong in dongList"
                   :key="dong"
                   @click="selectDong(dong)"
-                  @mouseenter="hoveredDongName = dong"
-                  @mouseleave="hoveredDongName = null"
+                  @mouseenter="setHoveredDong(createDongKey(selectedDistrict, dong), dong)"
+                  @mouseleave="clearHoveredDong(createDongKey(selectedDistrict, dong))"
                   class="w-full flex items-center justify-between bg-card border border-border rounded-xl px-4 py-3.5 hover:border-primary/40 hover:bg-secondary/50 transition-all text-left group"
                 >
                   <div>
@@ -723,14 +801,14 @@ function initMap() {
 
 <style scoped>
 :deep(.dong-label) {
-  background: rgba(255, 255, 255, 0.95);
-  border: 1px solid #1a73e8;
-  color: #1a73e8;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid #cbd5e1;
+  color: #1e293b;
   font-weight: 600;
-  font-size: 11px;
-  padding: 2px 5px;
-  border-radius: 4px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  font-size: 14px;
+  padding: 3px 7px;
+  border-radius: 5px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
   white-space: nowrap;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -739,6 +817,20 @@ function initMap() {
 :deep(.dong-label:hover) {
   background: #1a73e8;
   color: white;
+  border-color: #1a73e8;
   transform: scale(1.05);
+}
+
+:deep(.dong-hover-label) {
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid #cbd5e1;
+  color: #1e293b;
+  font-size: 15.6px;
+  font-weight: 700;
+  padding: 4px 9px;
+  border-radius: 7px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.16);
+  pointer-events: none;
+  white-space: nowrap;
 }
 </style>

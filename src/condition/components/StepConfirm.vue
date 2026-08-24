@@ -23,7 +23,10 @@ function toggleSection(key) {
   expanded.value = expanded.value === key ? null : key;
 }
 
-const target = computed(() => (props.state.addressTab === "unknown" ? "아직 미정" : props.state.commuteArea || "미설정"));
+const target = computed(() => {
+  if (props.state.addressTab !== "unknown") return props.state.commuteArea || "미설정";
+  return props.state.commuteAreas.length ? props.state.commuteAreas.join(", ") : "아직 미정";
+});
 const depositChips = computed(() => (props.state.rentType === "월세" ? [500, 1000, 1500, 2000, 3000] : [5000, 10000, 15000, 20000, 30000]));
 
 function togglePriority(p) {
@@ -38,8 +41,13 @@ function toggleHousing(h) {
   const s = props.state;
   update({ housingTypes: s.housingTypes.includes(h) ? s.housingTypes.filter((x) => x !== h) : [...s.housingTypes, h] });
 }
-function selectAddress(name, address) {
-  update({ addressTab: "known", detailAddress: name, commuteArea: address });
+function selectAddress({ zonecode, address, roadAddress }) {
+  update({
+    addressTab: "known",
+    postalCode: zonecode,
+    commuteArea: roadAddress || address,
+    detailAddress: "",
+  });
   modal.value = false;
 }
 </script>
@@ -67,13 +75,17 @@ function selectAddress(name, address) {
                 {{ i === 0 ? "주소를 알고 있어요" : "아직 정해지지 않았어요" }}
               </button>
             </div>
-            <div v-if="state.addressTab === 'known'" class="flex gap-2">
-              <input type="text" readonly :value="state.commuteArea" placeholder="주소를 검색해주세요" @click="modal = true" class="flex-1 bg-white border border-border rounded-xl px-4 py-3 text-sm cursor-pointer" />
-              <button @click="modal = true" class="bg-primary text-primary-foreground px-4 py-3 rounded-xl text-sm font-semibold flex items-center gap-1.5 hover:bg-primary/90"><Search :size="15" /> 검색</button>
+            <div v-if="state.addressTab === 'known'" class="space-y-2">
+              <div class="flex gap-2">
+                <input type="text" readonly :value="state.postalCode" placeholder="우편번호" @click="modal = true" class="w-28 bg-white border border-border rounded-xl px-4 py-3 text-sm cursor-pointer" />
+                <button @click="modal = true" class="bg-primary text-primary-foreground px-4 py-3 rounded-xl text-sm font-semibold flex items-center gap-1.5 hover:bg-primary/90"><Search :size="15" /> 우편번호 찾기</button>
+              </div>
+              <input type="text" readonly :value="state.commuteArea" placeholder="우편번호 찾기로 기본 주소를 선택해주세요" @click="modal = true" class="w-full bg-white border border-border rounded-xl px-4 py-3 text-sm cursor-pointer" />
+              <input type="text" :value="state.detailAddress" placeholder="상세 주소 (선택)" @input="update({ detailAddress: $event.target.value })" class="w-full bg-white border border-border rounded-xl px-4 py-3 text-sm" />
             </div>
             <div v-if="state.addressTab === 'unknown'" class="bg-white border border-border rounded-xl p-4">
               <div class="flex items-center justify-between mb-3">
-                <p class="text-xs font-semibold text-foreground">출근지 주변 구를 선택해주세요</p>
+                <p class="text-xs font-semibold text-foreground">원하시는 구를 선택해보세요</p>
                 <span class="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">0~2개</span>
               </div>
               <DistrictMap :model-value="state.commuteAreas" @update:model-value="(areas) => update({ commuteAreas: areas })" :max="2" />
@@ -122,7 +134,7 @@ function selectAddress(name, address) {
 
         <InlineEditSection
           title="예산"
-          :lines="[`${state.rentType} · ${state.deposit.toLocaleString()}만원`, `관리비 ${state.management}만원`]"
+          :lines="[`${state.rentType} · ${state.deposit.toLocaleString()}만원`]"
           :is-open="expanded === 'budget'"
           @toggle="toggleSection('budget')"
         >
@@ -138,10 +150,6 @@ function selectAddress(name, address) {
               <div v-if="state.rentType === '월세'">
                 <label class="block text-xs text-muted-foreground mb-1">최대 월세 (만원)</label>
                 <input type="number" :value="state.monthly" @input="update({ monthly: +$event.target.value })" class="w-full bg-white border border-border rounded-xl px-4 py-3 text-sm" />
-              </div>
-              <div>
-                <label class="block text-xs text-muted-foreground mb-1">최대 관리비 (만원)</label>
-                <input type="number" :value="state.management" @input="update({ management: +$event.target.value })" class="w-full bg-white border border-border rounded-xl px-4 py-3 text-sm" />
               </div>
             </div>
             <div>

@@ -3,6 +3,7 @@ import { computed, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useSearchStore } from "../stores/useSearchStore";
 import { useRecommendationStore } from "../../recommendation/stores/useRecommendationStore";
+import { useNeighborhoodStore } from "../../region/stores/useNeighborhoodStore";
 import StepCommute from "../components/StepCommute.vue";
 import StepPriority from "../components/StepPriority.vue";
 import StepBudget from "../components/StepBudget.vue";
@@ -24,6 +25,7 @@ const route = useRoute();
 const router = useRouter();
 const search = useSearchStore();
 const recommendation = useRecommendationStore();
+const nbhd = useNeighborhoodStore();
 
 const step = computed(() => Number(route.params.step) || 1);
 const isLoading = computed(() => route.path === "/search/loading");
@@ -46,6 +48,7 @@ function submit() {
 // 다시 돌리는 게 아니라 그 conditionId로 재계산을 요청한다. OpenAI 이유 생성을 다시
 // 거칠 수 있어(submit()과 동일하게) "찾고 있어요" 온보딩 로딩 화면을 그대로 거친다.
 function startSearch() {
+  nbhd.resetCompare();
   showFunnel.value = false;
   const recomputeConditionId = route.query.recomputeConditionId;
   if (recomputeConditionId) {

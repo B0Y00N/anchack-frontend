@@ -1,14 +1,16 @@
 <script setup>
 import { watch } from "vue";
 import { useRouter } from "vue-router";
-import { User, LogOut, Search, ShoppingCart } from "lucide-vue-next";
+import { User, LogOut, Search } from "lucide-vue-next";
 import SproutLogo from "./SproutLogo.vue";
 import { useAuthStore } from "../../user/stores/useAuthStore";
+import { useSearchStore } from "../../condition/stores/useSearchStore";
 import { useNeighborhoodStore } from "../../region/stores/useNeighborhoodStore";
 import { useMyPageStore } from "../../mypage/stores/useMyPageStore";
 
 const router = useRouter();
 const auth = useAuthStore();
+const search = useSearchStore();
 const nbhd = useNeighborhoodStore();
 const mypage = useMyPageStore();
 
@@ -24,6 +26,11 @@ watch(
 
 function navigate(path) {
   router.push(path);
+}
+function startNewSearch() {
+  search.reset();
+  nbhd.resetCompare();
+  router.push("/search/step/1");
 }
 function logout() {
   auth.logout();
@@ -54,14 +61,10 @@ function logout() {
         관심 동네
         <span v-if="mypage.savedNeighborhoods.length > 0" class="min-w-4 h-4 px-1 rounded-full bg-primary text-white text-[10px] flex items-center justify-center">{{ mypage.savedNeighborhoods.length }}</span>
       </button>
-      <button @click="navigate('/search/compare')" aria-label="비교 목록" class="relative flex items-center justify-center text-foreground/70 hover:text-primary transition-colors p-2 rounded-lg hover:bg-secondary">
-        <ShoppingCart :size="18" />
-        <span v-if="nbhd.compareList.length > 0" class="absolute -right-0.5 -top-0.5 min-w-4 h-4 px-1 rounded-full bg-primary text-white text-[10px] font-bold flex items-center justify-center">{{ nbhd.compareList.length }}</span>
-      </button>
       <button @click="logout" class="flex items-center gap-1.5 text-sm font-medium text-foreground/70 hover:text-foreground transition-colors px-3 py-2 rounded-lg hover:bg-muted">
         <LogOut :size="15" /> 로그아웃
       </button>
-      <button @click="navigate('/search/step/1')" class="ml-2 flex items-center gap-1.5 bg-primary text-primary-foreground text-sm font-semibold px-5 py-2.5 rounded-full hover:bg-primary/90 transition-colors shadow-sm">
+      <button @click="startNewSearch" class="ml-2 flex items-center gap-1.5 bg-primary text-primary-foreground text-sm font-semibold px-5 py-2.5 rounded-full hover:bg-primary/90 transition-colors shadow-sm">
         <Search :size="14" /> 동네 찾기
       </button>
     </nav>
@@ -69,7 +72,7 @@ function logout() {
     <nav v-else class="flex items-center gap-2">
       <button @click="navigate('/login')" class="text-sm font-medium text-foreground/70 hover:text-foreground transition-colors px-4 py-2 rounded-lg hover:bg-muted">로그인</button>
       <button @click="navigate('/signup')" class="text-sm font-semibold text-primary border border-primary/40 px-4 py-2 rounded-full hover:bg-secondary transition-colors">회원가입</button>
-      <button @click="navigate('/search/step/1')" class="ml-2 flex items-center gap-1.5 bg-primary text-primary-foreground text-sm font-semibold px-5 py-2.5 rounded-full hover:bg-primary/90 transition-colors shadow-sm">
+      <button @click="startNewSearch" class="ml-2 flex items-center gap-1.5 bg-primary text-primary-foreground text-sm font-semibold px-5 py-2.5 rounded-full hover:bg-primary/90 transition-colors shadow-sm">
         <Search :size="14" /> 동네 찾기
       </button>
     </nav>

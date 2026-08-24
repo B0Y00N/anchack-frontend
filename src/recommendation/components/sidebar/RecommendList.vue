@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref, watch } from "vue";
+import { computed, nextTick, onMounted, ref, watch } from "vue";
 import { AlertCircle, Check, BookOpen, RefreshCw, TrendingUp } from "lucide-vue-next";
 import NeighborhoodCard from "./NeighborhoodCard.vue";
 import { RELAXATION_HINTS } from "../../../common/utils/mockData";
@@ -16,8 +16,9 @@ const props = defineProps({
   rentType: { type: String, default: "월세" },
   // admin-dongs/batch(월세 시세/치안 점수) 로딩 상태. 예산순/치안순은 이 데이터가 있어야 정렬 가능
   detailsStatus: { type: String, default: "idle" },
+  focusedAdminDongId: { type: Number, default: null },
 });
-const emit = defineEmits(["detail", "compare", "toggle-save", "go-compare", "save-condition-click", "show-saved-list"]);
+const emit = defineEmits(["detail", "focus", "compare", "toggle-save", "go-compare", "save-condition-click", "show-saved-list"]);
 
 // destAddress를 안 넣은 검색(구 단위 검색)이면 recommendations 전체가 commuteTime=null로
 // 온다 - 이 경우 통근시간순은 정렬할 값 자체가 없다.
@@ -43,6 +44,7 @@ const filters = computed(() =>
 );
 
 const activeFilter = ref("score");
+const resultListRef = ref(null);
 function selectFilter(f) {
   if (f.disabled) return;
   activeFilter.value = f.key;
@@ -55,6 +57,25 @@ watch(filters, (fs) => {
   const active = fs.find((f) => f.key === activeFilter.value);
   if (active?.disabled) activeFilter.value = "score";
 });
+
+// 지도 이름표로 선택한 동이 현재 스크롤 영역 밖에 있어도,
+// 좌측 목록에서 선택된 카드가 바로 보이도록 해당 카드 위치로 이동한다.
+async function scrollToFocusedCard(adminDongId = props.focusedAdminDongId) {
+  if (adminDongId == null) return;
+  await nextTick();
+  requestAnimationFrame(() => {
+    const cards = resultListRef.value?.querySelectorAll("[data-admin-dong-id]") ?? [];
+    const targetCard = [...cards].find(
+      (card) => card.dataset.adminDongId === String(adminDongId),
+    );
+    targetCard?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  });
+}
+
+watch(() => props.focusedAdminDongId, scrollToFocusedCard);
+// 상세/비교 화면에서 돌아올 때는 포커싱 ID가 이미 존재한 채로 목록이 새로
+// 마운트될 수 있으므로, 이 시점에도 한 번 스크롤 위치를 복원한다.
+onMounted(() => scrollToFocusedCard());
 
 // 필터 버튼 줄이 overflow-x-auto라 툴팁을 그 안에서 absolute로 띄우면 스크롤
 // 컨테이너의 페인트/쌓임 순서에 갇혀 아래 카드 목록에 가려진다. body로 순간이동시켜서
@@ -96,10 +117,12 @@ const sortedNeighborhoods = computed(() => {
   }
 });
 
-// compareList는 adminDongId 배열이라 그대로 보여주면 "360, 220 비교 중"처럼 숫자로
-// 뜬다. 목록에 있는 동 이름으로 바꿔서 표시한다.
+// 비교 대상은 현재 목록에 있는 동 이름으로만 표시한다.
 const compareNames = computed(() =>
-  props.compareList.map((id) => props.neighborhoods.find((n) => n.id === id)?.dongName ?? id).join(", "),
+  props.compareList
+    .map((id) => props.neighborhoods.find((n) => n.id === id)?.dongName)
+    .filter(Boolean)
+    .join(", "),
 );
 </script>
 
@@ -164,7 +187,7 @@ const compareNames = computed(() =>
       <button @click="emit('go-compare')" class="ml-3 flex-shrink-0 text-xs font-bold text-primary bg-white px-3 py-1.5 rounded-full border border-primary/25 hover:bg-primary hover:text-white">비교 보기 →</button>
     </div>
 
-    <div class="flex-1 overflow-y-auto [&::-webkit-scrollbar]:hidden">
+    <div ref="resultListRef" class="flex-1 overflow-y-auto [&::-webkit-scrollbar]:hidden">
       <div v-if="neighborhoods.length === 0" class="p-4">
         <div class="bg-amber-50 border border-amber-200 rounded-2xl p-5">
           <p class="text-sm font-semibold text-amber-800 mb-3">조건을 완화하면 동네를 찾을 수 있어요</p>
@@ -186,7 +209,9 @@ const compareNames = computed(() =>
             :rank="i + 1"
             :compare-list="compareList"
             :is-saved="savedNeighborhoods.includes(n.id)"
+            :is-focused="focusedAdminDongId === n.id"
             @detail="emit('detail', n.id)"
+            @focus="emit('focus', n.id)"
             @compare="emit('compare', n.id)"
             @toggle-save="emit('toggle-save', n.id)"
           />
