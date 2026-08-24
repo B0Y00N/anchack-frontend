@@ -365,12 +365,16 @@ function resetMapView() {
 }
 
 watch(
-  () => props.focusedAdminDongId,
-  (newVal) => {
+  [() => props.focusedAdminDongId, () => props.recommendations],
+  ([focusedAdminDongId]) => {
     if (!kakaoMapInstance) return
-    if (newVal) focusOnDong(newVal)
+    const hasFocusedResult =
+      focusedAdminDongId != null && props.recommendations.some((item) => item.id === focusedAdminDongId)
+
+    if (hasFocusedResult) focusOnDong(focusedAdminDongId)
     else resetMapView()
   },
+  { deep: true },
 )
 
 watch(

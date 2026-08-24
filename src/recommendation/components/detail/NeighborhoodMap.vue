@@ -172,8 +172,8 @@ function resolveDongKey(name) {
   // 가운뎃점을 쓰는 경우가 있다. 경계 검색에서는 세 표기를 같은 이름으로 본다.
   const normalize = (dongName) =>
     String(dongName ?? '')
-      .replace(/제(\d+동)$/, '$1')
       .replace(/[\s,.·ㆍ]/g, '')
+      .replace(/제(\d+동)$/, '$1')
   const normalized = normalize(name)
   return Object.keys(dongBoundsMap).find((key) => normalize(key) === normalized) ?? name
 }
