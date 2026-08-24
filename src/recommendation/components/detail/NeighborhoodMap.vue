@@ -20,14 +20,23 @@ function fetchAllPlaces(adminDongId) {
 
 <script setup>
 import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { RotateCcw } from 'lucide-vue-next'
 import { loadSeoulGeojson } from '@/common/utils/loadSeoulGeojson.js'
 import { loadKakaoMap } from '@/common/utils/loadKakaoMap.js'
 
 const props = defineProps({
+  district: { type: String, required: true },
   dong: { type: String, required: true },
-  adminDongId: { type: Number, required: true },
+  // 경계 지도 자체는 GeoJSON만으로 그릴 수 있다. DB에 아직 등록되지 않은 동도
+  // 지도 경계는 보여주고, 장소 핀 조회만 생략하기 위해 null을 허용한다.
+  adminDongId: { type: Number, default: null },
   hash: { type: Number, required: true },
   mode: { type: String, required: true }, // "infra" | "safety" | "transit"
+  focusZoomLevel: { type: Number, default: 5 },
+  maxZoomLevel: { type: Number, default: 5 },
+  showPlaceNames: { type: Boolean, default: true },
+  boundaryStrokeWeight: { type: Number, default: 1 },
+  boundaryFillOpacity: { type: Number, default: 0.12 },
 })
 
 const modeLabel = { infra: '생활 인프라', safety: '치안 시설', transit: '교통 시설' }
@@ -37,50 +46,48 @@ const modeLabel = { infra: '생활 인프라', safety: '치안 시설', transit:
 // 마커 라벨에 장소명 대신 카테고리명을 쓴다.
 const CATEGORY_CONFIG = {
   infra: [
-    { label: '편의점', color: '#52B37A', emoji: '🏪', dbCategories: ['CONVENIENCE_STORE'] },
-    { label: '카페/음식점', color: '#C47C3A', emoji: '☕', dbCategories: ['CAFE', 'RESTAURANT'] },
-    { label: '병원/약국', color: '#E05555', emoji: '🏥', dbCategories: ['HOSPITAL', 'PHARMACY'] },
-    { label: '헬스장', color: '#2D7A4F', emoji: '🏋️', dbCategories: ['GYM'] },
-    { label: '은행', color: '#7B68A6', emoji: '🏦', dbCategories: ['BANK'] },
-    { label: '공원', color: '#4A9E6B', emoji: '🌳', dbCategories: ['PARK'] },
-    { label: '백화점', color: '#B03A8C', emoji: '🏬', dbCategories: ['DEPARTMENT_STORE'] },
-    { label: '대형마트', color: '#D97706', emoji: '🛒', dbCategories: ['MART'] },
+    { label: '편의점', color: '#52B37A', dbCategories: ['CONVENIENCE_STORE'] },
+    { label: '카페', color: '#C47C3A', dbCategories: ['CAFE'] },
+    { label: '음식점', color: '#B85C38', dbCategories: ['RESTAURANT'] },
+    { label: '병원', color: '#E05555', dbCategories: ['HOSPITAL'] },
+    { label: '약국', color: '#5B9BD5', dbCategories: ['PHARMACY'] },
+    { label: '헬스장', color: '#2D7A4F', dbCategories: ['GYM'] },
+    { label: '은행', color: '#7B68A6', dbCategories: ['BANK'] },
+    { label: '공원', color: '#4A9E6B', dbCategories: ['PARK'] },
+    { label: '백화점', color: '#B03A8C', dbCategories: ['DEPARTMENT_STORE'] },
+    { label: '대형마트', color: '#D97706', dbCategories: ['MART'] },
   ],
   safety: [
-    { label: 'CCTV', color: '#546E7A', emoji: '📷', dbCategories: ['CCTV'], anonymous: true },
+    { label: 'CCTV', color: '#546E7A', dbCategories: ['CCTV'], anonymous: true },
     {
       label: '가로등',
       color: '#F59E0B',
-      emoji: '💡',
       dbCategories: ['STREET_LIGHT'],
       anonymous: true,
     },
-    { label: '경찰서/지구대', color: '#1565C0', emoji: '🚔', dbCategories: ['POLICE'] },
+    { label: '경찰서/지구대', color: '#1565C0', dbCategories: ['POLICE'] },
     {
       label: '안전비상벨',
       color: '#E53935',
-      emoji: '🚨',
       dbCategories: ['SAFETY_BELL'],
       anonymous: true,
     },
   ],
   transit: [
-    { label: '지하철역', color: '#1976D2', emoji: '🚇', dbCategories: ['SUBWAY_STATION'] },
-    { label: '버스정류장', color: '#E64A19', emoji: '🚌', dbCategories: ['BUS_STOP'] },
+    { label: '지하철역', color: '#1976D2', dbCategories: ['SUBWAY_STATION'] },
+    { label: '버스정류장', color: '#E64A19', dbCategories: ['BUS_STOP'] },
   ],
 }
 // CCTV처럼 한 동에 몇 백 개씩 있는 카테고리를 다 찍으면 지도가 못 알아볼 정도로 빽빽해져서
 // 카테고리당 렌더링 개수를 여기서 제한한다(서버는 전체를 다 내려줌).
 const MAX_MARKERS_PER_CATEGORY = 30
-
 const set = computed(() => CATEGORY_CONFIG[props.mode])
 
-const active = ref(new Set(set.value.map((c) => c.label)))
+// 처음에는 핀을 표시하지 않고, 카테고리를 선택한 경우에만 해당 종류의 핀을 보인다.
+// 지도 위 라벨이 겹치는 것을 막기 위해 동시에 하나의 카테고리만 활성화할 수 있다.
+const active = ref(new Set())
 function toggleCat(label) {
-  const next = new Set(active.value)
-  if (next.has(label)) next.delete(label)
-  else next.add(label)
-  active.value = next
+  active.value = active.value.has(label) ? new Set() : new Set([label])
 }
 
 // 지도/geojson/장소 데이터가 준비되기 전엔 빈 화면 대신 로딩 표시를 보여준다
@@ -96,6 +103,7 @@ let dongPathsMap = {}
 let boundaryPolygon = null
 let overlays = []
 let geoLoaded = false
+let mapResizeObserver = null
 
 const allPlaces = ref([])
 
@@ -110,6 +118,12 @@ let disposed = false
 // 덮어쓰는 것을 방지).
 function loadPlacesFor(adminDongId) {
   placesError.value = false
+  // 동이 바뀌면 다음 응답이 도착하기 전까지 이전 동의 핀이 남지 않게 비운다.
+  allPlaces.value = []
+  if (adminDongId == null) {
+    return
+  }
+
   fetchAllPlaces(adminDongId)
     .then((places) => {
       if (disposed || props.adminDongId !== adminDongId) return
@@ -142,6 +156,8 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   disposed = true
+  mapResizeObserver?.disconnect()
+  mapResizeObserver = null
   overlays.forEach((o) => o.setMap(null))
   overlays = []
   if (boundaryPolygon) {
@@ -150,10 +166,19 @@ onBeforeUnmount(() => {
   }
 })
 
-function resolveDongKey(name) {
-  if (dongBoundsMap[name]) return name
-  const normalized = name.replace(/제(\d+동)$/, '$1')
-  return dongBoundsMap[normalized] ? normalized : name
+function createDongKey(district, dongName) {
+  // 화면/DB는 "상계3,4동"처럼 쉼표를 쓰고 GeoJSON은 "상계3·4동"처럼
+  // 가운뎃점을 쓰는 경우가 있다. 동 이름을 정규화하되 구 이름까지 포함해,
+  // 서로 다른 구의 같은 동 이름이 같은 경계로 취급되지 않도록 한다.
+  const normalizedDong = String(dongName ?? '')
+    .replace(/[\s,.·ㆍ]/g, '')
+    .replace(/제(\d+동)$/, '$1')
+  return `${district}:${normalizedDong}`
+}
+
+function resolveDongKey(district, dongName) {
+  const key = createDongKey(district, dongName)
+  return dongBoundsMap[key] ? key : null
 }
 
 function initMap() {
@@ -163,8 +188,22 @@ function initMap() {
   const map = new window.kakao.maps.Map(container, {
     center: new window.kakao.maps.LatLng(37.5665, 126.978),
     level: 5,
+    disableDoubleClickZoom: true,
   })
   kakaoMapInstance = map
+  // 카카오맵은 숫자가 작을수록 확대된다. 화면별 허용 범위 안에서만 지도를 살펴본다.
+  map.setZoomable(true)
+  map.setMinLevel(1)
+  map.setMaxLevel(props.maxZoomLevel)
+
+  // 탭 전환·반응형 레이아웃 변경으로 지도 컨테이너의 높이가 바뀔 때 카카오맵 내부
+  // 캔버스도 함께 다시 계산한다. 이 호출이 없으면 컨테이너만 커지고 지도는 이전
+  // 크기에 머물러, 높이 변경이 화면에서 반영되지 않는 경우가 있다.
+  mapResizeObserver?.disconnect()
+  mapResizeObserver = new ResizeObserver(() => {
+    if (!disposed && kakaoMapInstance) kakaoMapInstance.relayout()
+  })
+  mapResizeObserver.observe(container)
 
   if (geoLoaded) {
     focusOnCurrentDong()
@@ -179,13 +218,15 @@ function initMap() {
       geojson.features.forEach((feature) => {
         const fullName = feature.properties.adm_nm || ''
         const nameParts = fullName.split(' ')
+        const district = nameParts[1]
         const dongName = nameParts[nameParts.length - 1]
-        if (!dongName) return
+        if (!district || !dongName) return
+        const dongKey = createDongKey(district, dongName)
 
-        if (!dongBoundsMap[dongName]) dongBoundsMap[dongName] = new window.kakao.maps.LatLngBounds()
-        if (!dongPathsMap[dongName]) dongPathsMap[dongName] = []
+        if (!dongBoundsMap[dongKey]) dongBoundsMap[dongKey] = new window.kakao.maps.LatLngBounds()
+        if (!dongPathsMap[dongKey]) dongPathsMap[dongKey] = []
 
-        const bounds = dongBoundsMap[dongName]
+        const bounds = dongBoundsMap[dongKey]
         const coordinates = feature.geometry.coordinates
 
         function processCoords(coordsArr) {
@@ -200,10 +241,10 @@ function initMap() {
 
         if (feature.geometry.type === 'MultiPolygon') {
           coordinates.forEach((polygon) => {
-            dongPathsMap[dongName].push(processCoords(polygon[0]))
+            dongPathsMap[dongKey].push(processCoords(polygon[0]))
           })
         } else {
-          dongPathsMap[dongName].push(processCoords(coordinates[0]))
+          dongPathsMap[dongKey].push(processCoords(coordinates[0]))
         }
       })
 
@@ -219,7 +260,6 @@ function initMap() {
     })
 }
 
-// 줌 레벨을 레벨 5로 살짝 넓혀서 적당한 비율로 보이도록 조정
 function focusOnCurrentDong() {
   if (!kakaoMapInstance) return
 
@@ -232,25 +272,22 @@ function focusOnCurrentDong() {
       boundaryPolygon = null
     }
 
-    const key = resolveDongKey(props.dong)
+    const key = resolveDongKey(props.district, props.dong)
     const bounds = dongBoundsMap[key]
 
     if (bounds && !bounds.isEmpty()) {
       kakaoMapInstance.setBounds(bounds, -39.78, -39.78, -39.78, -39.78)
 
-      // 너무 과도하게 확대되는 것을 방지하기 위해 레벨이 너무 낮으면(확대 과다) 5로 고정
-      const currentLevel = kakaoMapInstance.getLevel()
-      if (currentLevel < 5) {
-        kakaoMapInstance.setLevel(6)
-      }
+      // setBounds로 동의 중심을 맞춘 다음, 동네 시설을 보기 좋은 확대 비율로 조정한다.
+      kakaoMapInstance.setLevel(props.focusZoomLevel)
 
       boundaryPolygon = new window.kakao.maps.Polygon({
         path: dongPathsMap[key],
-        strokeWeight: 3,
-        strokeColor: '#2D7A4F',
-        strokeOpacity: 0.9,
+        strokeWeight: props.boundaryStrokeWeight,
+        strokeColor: '#47804a',
+        strokeOpacity: 0.5,
         fillColor: '#2D7A4F',
-        fillOpacity: 0.12,
+        fillOpacity: props.boundaryFillOpacity,
       })
       boundaryPolygon.setMap(kakaoMapInstance)
     }
@@ -258,6 +295,19 @@ function focusOnCurrentDong() {
     renderMarkers()
     isLoading.value = false
   })
+}
+
+function resetMapFocus() {
+  if (!kakaoMapInstance) return
+
+  const key = resolveDongKey(props.district, props.dong)
+  const bounds = dongBoundsMap[key]
+  if (!bounds || bounds.isEmpty()) return
+
+  // 이 버튼은 이미 그려진 경계·핀을 다시 만들지 않고, 지도 시점만 초기 상태로 돌린다.
+  // 그래야 반복 클릭해도 CustomOverlay 이름표의 레이아웃이 흔들리지 않는다.
+  kakaoMapInstance.setBounds(bounds, -39.78, -39.78, -39.78, -39.78)
+  kakaoMapInstance.setLevel(props.focusZoomLevel)
 }
 
 function renderMarkers() {
@@ -277,6 +327,7 @@ function renderMarkers() {
           place.lng,
           cat,
           cat.anonymous ? null : place.name,
+          props.showPlaceNames,
         )
         overlay.setMap(kakaoMapInstance)
         overlays.push(overlay)
@@ -284,27 +335,41 @@ function renderMarkers() {
   })
 }
 
-function truncateLabel(text, max = 12) {
-  if (!text) return text
-  return text.length > max ? `${text.slice(0, max)}…` : text
+function formatMarkerLabel(placeName) {
+  // 이름표는 한 줄로 고정하므로, 데이터에 섞인 공백과 기호 뒤 공백만 정리한다.
+  return placeName
+    .trim()
+    .replace(/\s+/g, ' ')
+    .replace(/([.·ㆍ/])(?=\S)/g, '$1 ')
+    .replace(/(\S)\(/g, '$1 (')
 }
 
-function createMarkerOverlay(lat, lng, cat, placeName) {
+function createMarkerOverlay(lat, lng, cat, placeName, showLabel) {
   const el = document.createElement('div')
   el.className = 'infra-pin'
   el.style.setProperty('--pin-color', cat.color)
-  const labelText = placeName ? truncateLabel(placeName) : cat.label
-
-  // placeName은 외부 데이터 소스(공공데이터 등)에서 온 값이라 신뢰할 수 없는 입력이다.
-  // innerHTML 대신 textContent로 넣어 XSS를 막는다.
-  const label = document.createElement('span')
-  label.className = 'infra-pin-label'
-  label.textContent = `${cat.emoji ?? ''} ${labelText}`
-
   const dot = document.createElement('span')
   dot.className = 'infra-pin-dot'
 
-  el.append(label, dot)
+  if (showLabel) {
+    const labelText = placeName ? formatMarkerLabel(placeName) : cat.label
+    // placeName은 외부 데이터 소스(공공데이터 등)에서 온 값이라 신뢰할 수 없는 입력이다.
+    // innerHTML 대신 textContent로 넣어 XSS를 막는다.
+    const label = document.createElement('span')
+    label.className = 'infra-pin-label'
+    label.textContent = labelText
+    // 카카오맵 CustomOverlay는 지도 이동 시 콘텐츠를 별도 레이어로 재배치한다.
+    // 이때 외부 CSS의 줄바꿈 규칙이 흔들리지 않도록, 이름표의 핵심 레이아웃은
+    // 요소 자체에 고정한다. 긴 이름은 가로로 유지해 한 글자씩 세로로 쪼개지지 않는다.
+    label.style.display = 'inline-block'
+    label.style.width = 'max-content'
+    label.style.maxWidth = 'none'
+    label.style.whiteSpace = 'nowrap'
+    label.style.wordBreak = 'keep-all'
+    label.style.overflowWrap = 'normal'
+    el.append(label)
+  }
+  el.append(dot)
 
   return new window.kakao.maps.CustomOverlay({
     position: new window.kakao.maps.LatLng(lat, lng),
@@ -315,9 +380,9 @@ function createMarkerOverlay(lat, lng, cat, placeName) {
 }
 
 watch(
-  () => [props.dong, props.adminDongId, props.hash, props.mode],
+  () => [props.district, props.dong, props.adminDongId, props.hash, props.mode],
   () => {
-    active.value = new Set(set.value.map((c) => c.label))
+    active.value = new Set()
     loadPlacesFor(props.adminDongId)
     if (kakaoMapInstance) focusOnCurrentDong()
   },
@@ -334,9 +399,14 @@ watch(active, () => {
       <h4 class="font-semibold text-foreground text-sm">
         {{ dong }} 주변 {{ modeLabel[mode] }} 지도
       </h4>
-      <span class="text-xs text-muted-foreground bg-muted px-2.5 py-1 rounded-full"
-        >실제 장소 데이터</span
+      <button
+        type="button"
+        @click="resetMapFocus"
+        class="flex items-center gap-1.5 rounded-full bg-muted px-2.5 py-1 text-xs font-semibold text-muted-foreground transition-colors hover:bg-secondary hover:text-primary"
+        title="선택한 동으로 다시 이동"
       >
+        <RotateCcw :size="12" /> 선택 동으로
+      </button>
     </div>
 
     <div class="px-5 py-3 border-b border-border/50 flex flex-wrap gap-2">
@@ -421,24 +491,26 @@ watch(active, () => {
 }
 
 :deep(.infra-pin-dot) {
-  width: 10px;
-  height: 10px;
+  width: 15px;
+  height: 15px;
   border-radius: 50%;
   background: var(--pin-color);
-  border: 2px solid white;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
-  margin-top: 2px;
+  border: 3px solid white;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+  margin-top: 3px;
 }
 
 :deep(.infra-pin-label) {
-  font-size: 9px;
+  min-width: 42px;
+  font-size: 11px;
   font-weight: 700;
-  color: var(--pin-color);
+  color: #1f2937;
   background: white;
   padding: 1px 5px;
   border-radius: 4px;
   border: 0.8px solid var(--pin-color);
-  white-space: nowrap;
+  line-height: 1.3;
+  text-align: center;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
 }
 </style>

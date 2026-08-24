@@ -3,7 +3,7 @@
 export const DEFAULT_STATE = {
   addressTab: 'known',
   detailAddress: '',
-  commuteAreas: ['은평구'],
+  commuteAreas: [],
   commuteArea: '',
   commuteMode: '대중교통',
   maxCommuteTime: 60,
@@ -11,7 +11,6 @@ export const DEFAULT_STATE = {
   rentType: '월세',
   deposit: 3000,
   monthly: 70,
-  management: 10,
   housingTypes: ['오피스텔'],
   minArea: '20m² 이상',
   priorities: ['치안', '운동', '식생활'],

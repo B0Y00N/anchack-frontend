@@ -36,10 +36,6 @@ const chips = computed(() => (props.state.rentType === "월세" ? [500, 1000, 15
           <label class="block text-xs text-muted-foreground mb-1.5">최대 월세 (만원)</label>
           <input type="number" :value="state.monthly" @input="update({ monthly: +$event.target.value })" class="w-full bg-muted rounded-xl px-4 py-3 text-sm font-medium border-0 outline-none focus:ring-2 focus:ring-primary/30" />
         </div>
-        <div>
-          <label class="block text-xs text-muted-foreground mb-1.5">최대 관리비 (만원)</label>
-          <input type="number" :value="state.management" @input="update({ management: +$event.target.value })" class="w-full bg-muted rounded-xl px-4 py-3 text-sm font-medium border-0 outline-none focus:ring-2 focus:ring-primary/30" />
-        </div>
       </div>
       <div>
         <p class="text-xs text-muted-foreground mb-2">빠른 선택 · 10만 원 단위</p>

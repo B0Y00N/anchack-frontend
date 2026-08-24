@@ -60,7 +60,7 @@ const canNext = computed(() => {
 
     <div v-else class="mb-8">
       <div class="flex items-center justify-between mb-4">
-        <p class="text-sm font-semibold text-foreground">출근지 주변 구를 선택해주세요</p>
+        <p class="text-sm font-semibold text-foreground">원하시는 구를 선택해보세요</p>
         <span class="text-xs text-muted-foreground bg-muted px-2.5 py-1 rounded-full">0~2개 선택 가능</span>
       </div>
       <div class="bg-card border border-border rounded-2xl p-5">

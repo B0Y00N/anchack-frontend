@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import RecommendList from '../components/sidebar/RecommendList.vue'
 import SaveConditionModal from '../components/sidebar/SaveConditionModal.vue'
@@ -64,15 +64,45 @@ const neighborhoods = computed(() =>
   })),
 )
 
-// ResultMap이 핀을 찍는 데 쓰는 모양(id/lat/lng)으로 변환.
-// id는 지도 뱃지 표시 및 geojson 행정동 경계 매칭에 dongName을 그대로 사용한다(ResultMap.vue 참고).
+// 새 결과 목록에 없는 비교 대상은 남겨두지 않는다. 이전 검색의 adminDongId가 남아
+// 숫자 ID로 노출되는 것을 막고, 비교 대상은 언제나 현재 검색 결과로만 유지한다.
+watch(
+  () => neighborhoods.value.map((neighborhood) => neighborhood.id),
+  (ids) => nbhd.retainCompare(ids),
+  { immediate: true },
+)
+
+// 지도 포커싱은 동 이름 중복을 피하기 위해 adminDongId를 사용하고,
+// 경계 조회와 화면 표시는 구 이름·동 이름을 함께 전달한다.
 const mapRecommendations = computed(() =>
   recommendation.recommendations.map((r) => ({
-    id: r.dongName,
+    id: r.adminDongId,
+    district: r.guName,
+    dongName: r.dongName,
     lat: Number(r.lat),
     lng: Number(r.lng),
   })),
 )
+
+const focusedAdminDongId = ref(null)
+function toggleMapFocus(adminDongId) {
+  focusedAdminDongId.value = focusedAdminDongId.value === adminDongId ? null : adminDongId
+}
+function forceMapFocus(adminDongId) {
+  // 이미 같은 동이 선택된 상태에서 사용자가 지도를 다시 축소한 경우에도
+  // prop 변경을 한 번 발생시켜 6레벨 포커싱을 다시 적용한다.
+  if (focusedAdminDongId.value === adminDongId) {
+    focusedAdminDongId.value = null
+    nextTick(() => {
+      focusedAdminDongId.value = adminDongId
+    })
+    return
+  }
+  focusedAdminDongId.value = adminDongId
+}
+function focusNeighborhood(id) {
+  if (neighborhoods.value.some((item) => item.id === id)) toggleMapFocus(id)
+}
 
 const mode = computed(() => {
   if (route.path.endsWith('/compare')) return 'compare'
@@ -156,7 +186,9 @@ function goListings() {
         :condition-saved="conditionSaved"
         :rent-type="search.appState.rentType"
         :details-status="recommendation.detailsStatus"
+        :focused-admin-dong-id="focusedAdminDongId"
         @detail="goDetail"
+        @focus="focusNeighborhood"
         @compare="toggleCompare"
         @toggle-save="toggleSaveWithToast"
         @go-compare="router.push('/search/compare')"
@@ -171,7 +203,9 @@ function goListings() {
             v-model="search.appState.selectedDistricts"
             :max="2"
             :recommendations="mapRecommendations"
-            :highlighted="mapRecommendations[0]?.id"
+            :focused-admin-dong-id="focusedAdminDongId"
+            @toggle-focus="toggleMapFocus"
+            @force-focus="forceMapFocus"
           />
         </div>
       </div>

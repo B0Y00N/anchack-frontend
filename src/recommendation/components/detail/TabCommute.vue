@@ -84,6 +84,14 @@ const donutData = computed(() =>
       목적지를 입력하지 않아 통근 정보를 계산할 수 없어요. 아래에서 주변 교통 시설은 확인할 수 있어요.
     </p>
 
-    <NeighborhoodMap :dong="n.dongName" :admin-dong-id="n.id" :hash="hash" mode="transit" />
+    <NeighborhoodMap
+      :district="n.guName"
+      :dong="n.dongName"
+      :admin-dong-id="n.id"
+      :hash="hash"
+      mode="transit"
+      :boundary-stroke-weight="3"
+      :boundary-fill-opacity="0.25"
+    />
   </div>
 </template>
