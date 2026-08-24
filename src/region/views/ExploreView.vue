@@ -765,8 +765,8 @@ function initMap() {
                   v-for="dong in dongList"
                   :key="dong"
                   @click="selectDong(dong)"
-                  @mouseenter="setHoveredDong(dong)"
-                  @mouseleave="clearHoveredDong(dong)"
+                  @mouseenter="setHoveredDong(createDongKey(selectedDistrict, dong), dong)"
+                  @mouseleave="clearHoveredDong(createDongKey(selectedDistrict, dong))"
                   class="w-full flex items-center justify-between bg-card border border-border rounded-xl px-4 py-3.5 hover:border-primary/40 hover:bg-secondary/50 transition-all text-left group"
                 >
                   <div>
