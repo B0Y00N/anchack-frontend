@@ -204,7 +204,7 @@ const catAvgs = computed(() =>
             <div>
               <p class="font-semibold text-foreground text-sm mb-1">관할 경찰서</p>
               <p class="text-sm text-foreground/80">
-                {{ district.replace('구', '') }}경찰서 {{ dong.slice(0, 2) }}지구대 (도보 약
+                {{ district.replace(/구$/, '') }}경찰서 {{ dong.slice(0, 2) }}지구대 (도보 약
                 {{ 5 + (hash % 10) }}분)
               </p>
             </div>
