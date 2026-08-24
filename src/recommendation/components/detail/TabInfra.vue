@@ -62,6 +62,14 @@ const items = computed(() => [
         </div>
       </div>
     </div>
-    <NeighborhoodMap :dong="n.dongName" :admin-dong-id="n.id" :hash="hash" mode="infra" :boundary-stroke-weight="3" :boundary-fill-opacity="0.25" />
+    <NeighborhoodMap
+      :district="n.guName"
+      :dong="n.dongName"
+      :admin-dong-id="n.id"
+      :hash="hash"
+      mode="infra"
+      :boundary-stroke-weight="3"
+      :boundary-fill-opacity="0.25"
+    />
   </div>
 </template>

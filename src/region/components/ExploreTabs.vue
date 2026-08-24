@@ -285,6 +285,7 @@ const catAvgs = computed(() =>
 
         <NeighborhoodMap
           v-if="mapMode"
+          :district="district"
           :dong="dong"
           :admin-dong-id="adminDongId"
           :hash="hash"

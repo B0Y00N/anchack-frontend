@@ -25,6 +25,7 @@ import { loadSeoulGeojson } from '@/common/utils/loadSeoulGeojson.js'
 import { loadKakaoMap } from '@/common/utils/loadKakaoMap.js'
 
 const props = defineProps({
+  district: { type: String, required: true },
   dong: { type: String, required: true },
   // 경계 지도 자체는 GeoJSON만으로 그릴 수 있다. DB에 아직 등록되지 않은 동도
   // 지도 경계는 보여주고, 장소 핀 조회만 생략하기 위해 null을 허용한다.
@@ -165,17 +166,19 @@ onBeforeUnmount(() => {
   }
 })
 
-function resolveDongKey(name) {
-  if (dongBoundsMap[name]) return name
-
+function createDongKey(district, dongName) {
   // 화면/DB는 "상계3,4동"처럼 쉼표를 쓰고 GeoJSON은 "상계3·4동"처럼
-  // 가운뎃점을 쓰는 경우가 있다. 경계 검색에서는 세 표기를 같은 이름으로 본다.
-  const normalize = (dongName) =>
-    String(dongName ?? '')
-      .replace(/[\s,.·ㆍ]/g, '')
-      .replace(/제(\d+동)$/, '$1')
-  const normalized = normalize(name)
-  return Object.keys(dongBoundsMap).find((key) => normalize(key) === normalized) ?? name
+  // 가운뎃점을 쓰는 경우가 있다. 동 이름을 정규화하되 구 이름까지 포함해,
+  // 서로 다른 구의 같은 동 이름이 같은 경계로 취급되지 않도록 한다.
+  const normalizedDong = String(dongName ?? '')
+    .replace(/[\s,.·ㆍ]/g, '')
+    .replace(/제(\d+동)$/, '$1')
+  return `${district}:${normalizedDong}`
+}
+
+function resolveDongKey(district, dongName) {
+  const key = createDongKey(district, dongName)
+  return dongBoundsMap[key] ? key : null
 }
 
 function initMap() {
@@ -215,13 +218,15 @@ function initMap() {
       geojson.features.forEach((feature) => {
         const fullName = feature.properties.adm_nm || ''
         const nameParts = fullName.split(' ')
+        const district = nameParts[1]
         const dongName = nameParts[nameParts.length - 1]
-        if (!dongName) return
+        if (!district || !dongName) return
+        const dongKey = createDongKey(district, dongName)
 
-        if (!dongBoundsMap[dongName]) dongBoundsMap[dongName] = new window.kakao.maps.LatLngBounds()
-        if (!dongPathsMap[dongName]) dongPathsMap[dongName] = []
+        if (!dongBoundsMap[dongKey]) dongBoundsMap[dongKey] = new window.kakao.maps.LatLngBounds()
+        if (!dongPathsMap[dongKey]) dongPathsMap[dongKey] = []
 
-        const bounds = dongBoundsMap[dongName]
+        const bounds = dongBoundsMap[dongKey]
         const coordinates = feature.geometry.coordinates
 
         function processCoords(coordsArr) {
@@ -236,10 +241,10 @@ function initMap() {
 
         if (feature.geometry.type === 'MultiPolygon') {
           coordinates.forEach((polygon) => {
-            dongPathsMap[dongName].push(processCoords(polygon[0]))
+            dongPathsMap[dongKey].push(processCoords(polygon[0]))
           })
         } else {
-          dongPathsMap[dongName].push(processCoords(coordinates[0]))
+          dongPathsMap[dongKey].push(processCoords(coordinates[0]))
         }
       })
 
@@ -267,7 +272,7 @@ function focusOnCurrentDong() {
       boundaryPolygon = null
     }
 
-    const key = resolveDongKey(props.dong)
+    const key = resolveDongKey(props.district, props.dong)
     const bounds = dongBoundsMap[key]
 
     if (bounds && !bounds.isEmpty()) {
@@ -295,7 +300,7 @@ function focusOnCurrentDong() {
 function resetMapFocus() {
   if (!kakaoMapInstance) return
 
-  const key = resolveDongKey(props.dong)
+  const key = resolveDongKey(props.district, props.dong)
   const bounds = dongBoundsMap[key]
   if (!bounds || bounds.isEmpty()) return
 
@@ -375,7 +380,7 @@ function createMarkerOverlay(lat, lng, cat, placeName, showLabel) {
 }
 
 watch(
-  () => [props.dong, props.adminDongId, props.hash, props.mode],
+  () => [props.district, props.dong, props.adminDongId, props.hash, props.mode],
   () => {
     active.value = new Set()
     loadPlacesFor(props.adminDongId)

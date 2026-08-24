@@ -276,6 +276,16 @@ let dongHoverLabel = null
 let mapOverlayList = []
 let districtOutlineList = []
 
+// 서울에는 서로 다른 구에 같은 이름의 동(예: 강남구/관악구 신사동)이 있다.
+// 지도 객체의 식별자는 화면에 보이는 동 이름만 쓰지 않고, 구 이름까지 포함해야
+// 한 동의 호버/색상 변경이 다른 구의 동 경계에 적용되지 않는다.
+function createDongKey(district, dongName) {
+  const normalizedDong = String(dongName ?? '')
+    .replace(/[\s,.·ㆍ]/g, '')
+    .replace(/제(\d+동)$/, '$1')
+  return `${district}:${normalizedDong}`
+}
+
 // initMap()이 다시 호출될 때마다(동 선택 해제로 전체 지도로 돌아올 때 등) 1씩 증가하는
 // 세션 번호. 언마운트뿐 아니라 "같은 컴포넌트 안에서 재초기화"되는 경우까지 함께 잡아내어,
 // 이전 세션에서 걸어둔 geojson fetch가 나중에 끝나도 최신 지도에 잘못 반영되지 않게 막는다.
@@ -286,19 +296,19 @@ let disposed = false
 
 // document.getElementById('map') 하드코딩 대신 template ref 사용
 const mapContainer = ref(null)
-const hoveredDongName = ref(null)
+const hoveredDongKey = ref(null)
 
-watch(hoveredDongName, (newDong, oldDong) => {
-  if (oldDong && dongPolygonMap[oldDong]) {
-    const originColor = originalPolygonColors[oldDong] || '#FF0000'
-    dongPolygonMap[oldDong].setOptions({
+watch(hoveredDongKey, (newKey, oldKey) => {
+  if (oldKey && dongPolygonMap[oldKey]) {
+    const originColor = originalPolygonColors[oldKey] || '#FF0000'
+    dongPolygonMap[oldKey].setOptions({
       fillColor: originColor,
       fillOpacity: 0.65,
     })
   }
-  if (newDong && dongPolygonMap[newDong]) {
-    const compColor = complementaryPolygonColors[newDong] || '#00FFFF'
-    dongPolygonMap[newDong].setOptions({
+  if (newKey && dongPolygonMap[newKey]) {
+    const compColor = complementaryPolygonColors[newKey] || '#00FFFF'
+    dongPolygonMap[newKey].setOptions({
       fillColor: compColor,
       fillOpacity: 0.95,
     })
@@ -348,7 +358,7 @@ function clearMapObjects() {
   dongHoverLabel = null
   mapOverlayList = []
   districtOutlineList = []
-  hoveredDongName.value = null
+  hoveredDongKey.value = null
 }
 
 function focusDistrict(districtName) {
@@ -368,21 +378,21 @@ function toggleDistrict(districtName) {
   selectedDistrict.value = selectedDistrict.value === districtName ? null : districtName
 }
 
-function showDongHoverLabel(dongName, position = dongCenterMap[dongName]) {
+function showDongHoverLabel(dongKey, dongName, position = dongCenterMap[dongKey]) {
   if (!dongHoverOverlay || !dongHoverLabel || !position) return
   dongHoverLabel.textContent = dongName
   dongHoverOverlay.setPosition(position)
   dongHoverOverlay.setMap(kakaoMapInstance)
 }
 
-function setHoveredDong(dongName, position) {
-  hoveredDongName.value = dongName
-  showDongHoverLabel(dongName, position)
+function setHoveredDong(dongKey, dongName, position) {
+  hoveredDongKey.value = dongKey
+  showDongHoverLabel(dongKey, dongName, position)
 }
 
-function clearHoveredDong(dongName) {
-  if (hoveredDongName.value !== dongName) return
-  hoveredDongName.value = null
+function clearHoveredDong(dongKey) {
+  if (hoveredDongKey.value !== dongKey) return
+  hoveredDongKey.value = null
   dongHoverOverlay?.setMap(null)
 }
 
@@ -472,6 +482,7 @@ function initMap() {
         const dongName = nameParts[2]
 
         if (!sigName || !dongName) return
+        const dongKey = createDongKey(sigName, dongName)
 
         if (!districtMap[sigName]) {
           districtMap[sigName] = { totalLat: 0, totalLng: 0, pointCount: 0 }
@@ -512,10 +523,10 @@ function initMap() {
         }
 
         const assignedColor = districtColorMap[sigName] || '#FF0000'
-        originalPolygonColors[dongName] = assignedColor
-        complementaryPolygonColors[dongName] = getComplementaryColor(assignedColor)
+        originalPolygonColors[dongKey] = assignedColor
+        complementaryPolygonColors[dongKey] = getComplementaryColor(assignedColor)
         if (dongCenter.count > 0) {
-          dongCenterMap[dongName] = new window.kakao.maps.LatLng(
+          dongCenterMap[dongKey] = new window.kakao.maps.LatLng(
             dongCenter.totalLat / dongCenter.count,
             dongCenter.totalLng / dongCenter.count,
           )
@@ -530,16 +541,16 @@ function initMap() {
           fillOpacity: 0.65,
         })
 
-        dongPolygonMap[dongName] = polygon
+        dongPolygonMap[dongKey] = polygon
 
         window.kakao.maps.event.addListener(polygon, 'mouseover', (mouseEvent) => {
-          setHoveredDong(dongName, mouseEvent.latLng)
+          setHoveredDong(dongKey, dongName, mouseEvent.latLng)
         })
         window.kakao.maps.event.addListener(polygon, 'mousemove', (mouseEvent) => {
-          showDongHoverLabel(dongName, mouseEvent.latLng)
+          showDongHoverLabel(dongKey, dongName, mouseEvent.latLng)
         })
         window.kakao.maps.event.addListener(polygon, 'mouseout', () => {
-          clearHoveredDong(dongName)
+          clearHoveredDong(dongKey)
         })
         window.kakao.maps.event.addListener(polygon, 'click', () => {
           if (selectedDistrict.value === sigName) selectDong(dongName)
