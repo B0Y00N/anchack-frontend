@@ -2,6 +2,7 @@
 
 export const DEFAULT_STATE = {
   addressTab: 'known',
+  postalCode: '',
   detailAddress: '',
   commuteAreas: [],
   commuteArea: '',

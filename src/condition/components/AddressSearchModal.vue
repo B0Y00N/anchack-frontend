@@ -1,16 +1,42 @@
 <script setup>
-import { ref, computed } from 'vue'
-import { X, Search, MapPin } from 'lucide-vue-next'
-import { MOCK_ADDRESSES } from '../../common/utils/mockData'
+import { nextTick, onMounted, ref } from "vue";
+import { LoaderCircle, RotateCw, X } from "lucide-vue-next";
+import { loadKakaoPostcode } from "../../common/utils/loadKakaoPostcode";
 
-const emit = defineEmits(['close', 'select'])
-const query = ref('')
+const emit = defineEmits(["close", "select"]);
 
-const filtered = computed(() => {
-  const q = query.value.trim()
-  if (q.length < 1) return MOCK_ADDRESSES.slice(0, 8)
-  return MOCK_ADDRESSES.filter((a) => a.name.includes(q) || a.address.includes(q)).slice(0, 12)
-})
+const postcodeContainer = ref(null);
+const isLoading = ref(true);
+const loadError = ref("");
+
+async function showPostcodeSearch() {
+  isLoading.value = true;
+  loadError.value = "";
+
+  try {
+    const Postcode = await loadKakaoPostcode();
+    await nextTick();
+
+    if (!postcodeContainer.value) return;
+
+    new Postcode({
+      oncomplete(data) {
+        emit("select", {
+          zonecode: data.zonecode,
+          address: data.userSelectedType === "R" ? data.roadAddress : data.jibunAddress,
+          roadAddress: data.roadAddress,
+          jibunAddress: data.jibunAddress,
+        });
+      },
+    }).embed(postcodeContainer.value, { width: "100%", height: "100%" });
+  } catch (error) {
+    loadError.value = error.message || "주소 검색 화면을 불러오지 못했습니다.";
+  } finally {
+    isLoading.value = false;
+  }
+}
+
+onMounted(showPostcodeSearch);
 </script>
 
 <template>
@@ -22,51 +48,30 @@ const filtered = computed(() => {
       class="bg-card w-full max-w-[520px] rounded-2xl shadow-2xl border border-border overflow-hidden"
       @click.stop
     >
-      <div class="px-6 pt-6 pb-4 border-b border-border">
-        <div class="flex items-center justify-between mb-4">
-          <h2 class="font-bold text-foreground text-lg">회사·학교 주소 검색</h2>
+      <div class="px-6 py-4 border-b border-border">
+        <div class="flex items-center justify-between">
+          <h2 class="font-bold text-foreground text-lg">우편번호 찾기</h2>
           <button @click="emit('close')" aria-label="닫기" class="p-1.5 rounded-lg hover:bg-muted">
             <X :size="18" class="text-muted-foreground" />
           </button>
         </div>
-        <div class="flex gap-2">
-          <div class="flex-1 relative">
-            <Search
-              :size="15"
-              class="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground"
-            />
-            <input
-              autofocus
-              type="text"
-              v-model="query"
-              placeholder="회사명, 학교명, 도로명 주소 검색"
-              class="w-full bg-muted rounded-xl pl-9 pr-4 py-3 text-sm border-0 outline-none focus:ring-2 focus:ring-primary/30"
-            />
-          </div>
-        </div>
       </div>
-      <div class="max-h-[360px] overflow-y-auto [&::-webkit-scrollbar]:hidden">
-        <div v-if="filtered.length === 0" class="py-12 text-center text-sm text-muted-foreground">
-          검색 결과가 없어요
+      <div class="h-[460px] relative">
+        <div v-if="isLoading" class="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-card text-sm text-muted-foreground">
+          <LoaderCircle :size="22" class="animate-spin text-primary" />
+          주소 검색 화면을 불러오는 중이에요.
         </div>
-        <ul v-else class="divide-y divide-border/60">
-          <li v-for="(item, i) in filtered" :key="i">
-            <button
-              @click="emit('select', item.name, item.address)"
-              class="w-full text-left px-6 py-4 hover:bg-secondary transition-colors flex items-start gap-3"
-            >
-              <MapPin :size="14" class="text-primary mt-0.5 flex-shrink-0" />
-              <div>
-                <p class="text-sm font-semibold text-foreground">{{ item.name }}</p>
-                <p class="text-xs text-muted-foreground mt-0.5">{{ item.address }}</p>
-              </div>
-            </button>
-          </li>
-        </ul>
+        <div v-else-if="loadError" class="absolute inset-0 flex flex-col items-center justify-center gap-4 px-6 text-center text-sm text-muted-foreground">
+          <p>{{ loadError }}</p>
+          <button @click="showPostcodeSearch" class="inline-flex items-center gap-1.5 rounded-xl bg-muted px-3 py-2 text-sm font-semibold text-foreground hover:bg-secondary">
+            <RotateCw :size="15" /> 다시 시도
+          </button>
+        </div>
+        <div ref="postcodeContainer" class="h-full w-full" />
       </div>
       <div class="px-6 py-3 bg-muted/40 border-t border-border">
         <p class="text-xs text-muted-foreground">
-          주소가 없다면 직접 입력 후 다음 단계로 넘어가주세요.
+          도로명, 지번 또는 건물명으로 검색할 수 있어요.
         </p>
       </div>
     </div>
