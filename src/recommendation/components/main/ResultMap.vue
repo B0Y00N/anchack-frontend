@@ -55,8 +55,8 @@ const RAINBOW_25_COLORS = [
 // 소수점 레벨(예: 8.45)을 넘기면 타일 요청 URL에 그 값이 그대로 들어가
 // (예: .../latest/8.45/42/20.png) 존재하지 않는 디렉토리를 요청하게 되어
 // 타일 서버가 전부 400을 반환하고, 기본 축척 표시도 NaN으로 깨진다.
-const INITIAL_ZOOM_LEVEL = 8
-const LABEL_VISIBLE_MAX_LEVEL = 8
+const INITIAL_ZOOM_LEVEL = 9
+const LABEL_VISIBLE_MAX_LEVEL = 9
 
 // 컴포넌트가 이미 언마운트된 뒤에 도착하는 비동기 콜백(SDK 로드, geojson fetch,
 // setTimeout)이 사라진 컨테이너에 지도를 다시 붙이는 것을 막기 위한 플래그.
@@ -198,7 +198,7 @@ function initMap() {
 
         const polygon = new window.kakao.maps.Polygon({
           path: paths,
-          strokeWeight: 2,
+          strokeWeight: 1,
           strokeColor: '#FFFDF8',
           strokeOpacity: 0.95,
           fillColor: assignedColor,
@@ -441,9 +441,9 @@ onBeforeUnmount(() => {
   border: 1px solid #cbd5e1;
   color: #1e293b;
   font-weight: 600;
-  font-size: 16.5px;
-  padding: 3px 9px;
-  border-radius: 6px;
+  font-size: 13.2px;
+  padding: 2.4px 7.2px;
+  border-radius: 4.8px;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
   white-space: nowrap;
   user-select: none;

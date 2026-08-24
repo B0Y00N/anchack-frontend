@@ -361,7 +361,7 @@ function focusDistrict(districtName) {
 function resetMapView() {
   if (!kakaoMapInstance) return
   kakaoMapInstance.setCenter(new window.kakao.maps.LatLng(37.5665, 126.978))
-  kakaoMapInstance.setLevel(8)
+  kakaoMapInstance.setLevel(9)
 }
 
 function toggleDistrict(districtName) {
@@ -403,7 +403,7 @@ function initMap() {
   // 타일 서버가 전부 400을 반환한다. 반드시 정수로만 넣는다.
   const map = new window.kakao.maps.Map(container, {
     center: new window.kakao.maps.LatLng(37.5665, 126.978),
-    level: 8,
+    level: 9,
     disableDoubleClickZoom: true,
   })
   kakaoMapInstance = map
@@ -607,7 +607,7 @@ function initMap() {
 
 <template>
   <!-- 동 상세 화면 -->
-  <div v-if="selectedDong" class="flex h-dvh flex-col overflow-hidden bg-background pt-15">
+  <div v-if="selectedDong" class="min-h-screen bg-background pt-15">
     <ReviewWriteModal
       v-if="showReviewForm && adminDong"
       :admin-dong-id="adminDong.adminDongId"
@@ -637,7 +637,6 @@ function initMap() {
       />
     </div>
     <ExploreTabs
-      class="min-h-0 flex-1"
       :district="selectedDistrict"
       :dong="selectedDong"
       :admin-dong-id="adminDong?.adminDongId"

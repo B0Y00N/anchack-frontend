@@ -31,8 +31,8 @@ const props = defineProps({
   adminDongId: { type: Number, default: null },
   hash: { type: Number, required: true },
   mode: { type: String, required: true }, // "infra" | "safety" | "transit"
-  focusZoomLevel: { type: Number, default: 4 },
-  maxZoomLevel: { type: Number, default: 4 },
+  focusZoomLevel: { type: Number, default: 5 },
+  maxZoomLevel: { type: Number, default: 5 },
   showPlaceNames: { type: Boolean, default: true },
   boundaryStrokeWeight: { type: Number, default: 1 },
   boundaryFillOpacity: { type: Number, default: 0.12 },
@@ -438,7 +438,7 @@ watch(active, () => {
     </div>
 
     <div class="relative">
-      <div :id="mapElId" class="w-full h-[480px] sm:h-[630px] lg:h-[780px]"></div>
+      <div :id="mapElId" class="w-full h-[320px] sm:h-[420px] lg:h-[520px]"></div>
       <div
         v-if="isLoading"
         class="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-card"

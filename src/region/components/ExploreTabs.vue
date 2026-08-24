@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, nextTick, toRefs } from 'vue'
+import { ref, computed, toRefs } from 'vue'
 import {
   Dumbbell,
   Store,
@@ -29,15 +29,10 @@ const emit = defineEmits(['write-review', 'listings'])
 
 const TABS = ['인프라', '치안', '교통', '주거비', '리뷰']
 const tab = ref('인프라')
-const tabContentRef = ref(null)
 
 function selectTab(nextTab) {
   if (tab.value === nextTab) return
   tab.value = nextTab
-  // 탭마다 콘텐츠 길이가 다르므로, 이전 탭에서 내려간 위치를 새 탭에 남기지 않는다.
-  nextTick(() => {
-    if (tabContentRef.value) tabContentRef.value.scrollTop = 0
-  })
 }
 
 const { hash, stats } = toRefs(props)
@@ -139,8 +134,8 @@ const catAvgs = computed(() =>
 </script>
 
 <template>
-  <div class="flex h-full min-h-0 flex-col">
-    <div class="max-w-5xl mx-auto w-full px-8 flex shrink-0">
+  <div>
+    <div class="max-w-5xl mx-auto w-full px-8 flex">
       <button
         v-for="t in TABS"
         :key="t"
@@ -151,7 +146,7 @@ const catAvgs = computed(() =>
       </button>
     </div>
 
-    <div ref="tabContentRef" class="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+    <div>
       <div class="max-w-5xl mx-auto px-8 py-8">
         <div v-if="tab === '인프라'" class="space-y-5">
           <div>
@@ -294,8 +289,8 @@ const catAvgs = computed(() =>
           :admin-dong-id="adminDongId"
           :hash="hash"
           :mode="mapMode"
-          :focus-zoom-level="5"
-          :max-zoom-level="5"
+          :focus-zoom-level="6"
+          :max-zoom-level="6"
           :boundary-stroke-weight="3"
           :boundary-fill-opacity="0.25"
         />
