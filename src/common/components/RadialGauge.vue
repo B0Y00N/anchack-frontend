@@ -1,9 +1,11 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onBeforeUnmount, onMounted } from 'vue'
+import { formatOneDecimal } from '../utils/formatNumber'
 
 const props = defineProps({
   label: { type: String, required: true },
   value: { type: Number, required: true }, // 0~100
+  maxValue: { type: Number, default: 100 },
   unit: { type: String, default: '점' },
   color: { type: String, default: '#2D7A4F' },
   size: { type: Number, default: 96 },
@@ -15,13 +17,24 @@ const circumference = computed(() => 2 * Math.PI * radius.value)
 
 // 처음 나타날 때 0에서부터 자연스럽게 채워지도록
 const displayValue = ref(0)
+let animationFrame = null
 onMounted(() => {
-  requestAnimationFrame(() => {
-    displayValue.value = props.value
+  // 탭 전환 직후에도 빈 원이 먼저 한 번 그려진 뒤 차오르게 두 프레임 뒤에 값을 넣는다.
+  animationFrame = requestAnimationFrame(() => {
+    animationFrame = requestAnimationFrame(() => {
+      displayValue.value = props.value
+    })
   })
 })
+onBeforeUnmount(() => {
+  if (animationFrame != null) cancelAnimationFrame(animationFrame)
+})
 
-const clamped = computed(() => Math.max(0, Math.min(100, displayValue.value)))
+const clamped = computed(() => {
+  const max = Number(props.maxValue)
+  if (!Number.isFinite(max) || max <= 0) return 0
+  return Math.max(0, Math.min(100, (displayValue.value / max) * 100))
+})
 const dash = computed(() => (clamped.value / 100) * circumference.value)
 </script>
 
@@ -52,7 +65,7 @@ const dash = computed(() => (clamped.value / 100) * circumference.value)
         </g>
       </svg>
       <div class="absolute inset-0 flex items-center justify-center">
-        <span class="text-base font-bold text-foreground">{{ value }}{{ unit }}</span>
+        <span class="text-base font-bold text-foreground">{{ formatOneDecimal(value) }}{{ unit }}</span>
       </div>
     </div>
     <span class="text-xs text-muted-foreground text-center">{{ label }}</span>
@@ -61,6 +74,6 @@ const dash = computed(() => (clamped.value / 100) * circumference.value)
 
 <style scoped>
 .gauge-arc {
-  transition: stroke-dasharray 0.6s ease;
+  transition: stroke-dasharray 0.85s cubic-bezier(0.22, 1, 0.36, 1);
 }
 </style>

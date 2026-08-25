@@ -43,5 +43,13 @@ export function resolveLineColor({ transportType, lineNum, vehicleType }) {
   if (transportType === "BUS") {
     return BUS_TYPE_COLORS[vehicleType] ?? BUS_FALLBACK_COLOR;
   }
+  if (transportType === "BUS_AND_SUBWAY") {
+    // 혼합 경로도 lineNum/vehicleType은 첫 탑승 수단 기준으로 저장된다.
+    return SUBWAY_LINE_COLORS[lineNum] ?? BUS_TYPE_COLORS[vehicleType] ?? BUS_FALLBACK_COLOR;
+  }
+  return SUBWAY_LINE_COLORS[lineNum] ?? SUBWAY_FALLBACK_COLOR;
+}
+
+export function resolveSubwayLineColor(lineNum) {
   return SUBWAY_LINE_COLORS[lineNum] ?? SUBWAY_FALLBACK_COLOR;
 }

@@ -3,56 +3,69 @@ import { computed } from 'vue'
 import { Shield } from 'lucide-vue-next'
 import RadialGauge from '../../../common/components/RadialGauge.vue'
 import NeighborhoodMap from './NeighborhoodMap.vue'
+import { formatOneDecimal } from '../../../common/utils/formatNumber'
 
 const props = defineProps({
   n: { type: Object, required: true },
   hash: { type: Number, required: true },
 })
 
-const scoreColor = (v) =>
-  v === 100
-    ? '#F0B87A'
-    : v >= 90
-      ? '#F2A8C0'
-      : v >= 80
-        ? '#B8AEDD'
-        : v >= 70
-          ? '#8EC8E8'
-          : '#A8D5A0'
+const SAFETY_COLORS = {
+  red: '#E56B6F',
+  yellow: '#F0B87A',
+  green: '#52B37A',
+  sky: '#4A90D9',
+  pink: '#FF4FB8',
+}
 
-const gauges = computed(() => [
-  { label: 'CCTV 밀도', value: Math.round(props.n.cctv * 30) },
-  { label: '야간 안전도', value: props.n.safetyScore },
-  { label: '경찰 접근성', value: 75 },
+function safetyColor(value) {
+  if (value > 60) return SAFETY_COLORS.pink
+  if (value >= 55) return SAFETY_COLORS.sky
+  if (value >= 50) return SAFETY_COLORS.green
+  if (value >= 45) return SAFETY_COLORS.yellow
+  return SAFETY_COLORS.red
+}
+
+function crimeColor(value) {
+  if (value >= 95) return SAFETY_COLORS.red
+  if (value >= 80) return SAFETY_COLORS.green
+  if (value >= 65) return SAFETY_COLORS.sky
+  return SAFETY_COLORS.pink
+}
+
+const safetyScoreMax = computed(() => {
+  const max = Number(props.n.safetyScoreMax)
+  const score = Number(props.n.safetyScore)
+  return Number.isFinite(max) && max > 0 ? Math.max(max, score) : 100
+})
+
+const safetyMetrics = computed(() => [
+  { label: 'CCTV 개수', val: `${formatOneDecimal(props.n.cctv)}대`, color: SAFETY_COLORS.sky },
+  { label: '안심벨 수', val: `${formatOneDecimal(props.n.safetyBellCount)}개`, color: SAFETY_COLORS.green },
+  { label: '인구 1만명당 범죄', val: `${formatOneDecimal(props.n.crimeRate)}건`, color: crimeColor(props.n.crimeRate) },
 ])
 </script>
 
 <template>
   <div class="space-y-5">
-    <div class="grid grid-cols-3 gap-4">
-      <div
-        v-for="item in [
-          { label: '종합 안전 점수', val: `${n.safetyScore}점` },
-          { label: '100m당 CCTV', val: `${n.cctv}대` },
-          { label: '인구 1000명당 범죄', val: `${n.crimeRate}건` },
-        ]"
-        :key="item.label"
-        class="bg-card border border-border rounded-2xl p-5 text-center"
-      >
-        <p class="text-2xl font-bold text-primary mb-1">{{ item.val }}</p>
-        <p class="text-xs text-muted-foreground">{{ item.label }}</p>
-      </div>
-    </div>
-    <div class="bg-card border border-border rounded-2xl p-6">
-      <h4 class="font-semibold text-foreground mb-5">항목별 안전 지표</h4>
-      <div class="flex justify-around">
-        <RadialGauge
-          v-for="item in gauges"
+    <div class="bg-card border border-border rounded-2xl p-6 flex items-center gap-8">
+      <RadialGauge
+        label="종합 안전 점수"
+        :value="n.safetyScore"
+        :max-value="safetyScoreMax"
+        :color="safetyColor(n.safetyScore)"
+        :size="124"
+        :thickness="12"
+      />
+      <div class="grid flex-1 grid-cols-3 gap-3 border-l border-border pl-8">
+        <div
+          v-for="item in safetyMetrics"
           :key="item.label"
-          :label="item.label"
-          :value="item.value"
-          :color="scoreColor(item.value)"
-        />
+          class="rounded-2xl bg-muted/45 p-4 text-center"
+        >
+          <p class="text-2xl font-bold mb-1" :style="{ color: item.color }">{{ item.val }}</p>
+          <p class="text-xs text-muted-foreground">{{ item.label }}</p>
+        </div>
       </div>
     </div>
     <div class="bg-card border border-border rounded-2xl p-5 flex items-start gap-3">
@@ -65,7 +78,7 @@ const gauges = computed(() => [
     <NeighborhoodMap
       :district="n.guName"
       :dong="n.dongName"
-      :admin-dong-id="n.id"
+      :admin-dong-id="n.id ?? n.adminDongId"
       :hash="hash"
       mode="safety"
       :boundary-stroke-weight="3"

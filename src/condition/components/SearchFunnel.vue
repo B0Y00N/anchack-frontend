@@ -8,7 +8,7 @@ import { Sparkles, ChevronRight } from "lucide-vue-next";
 const props = defineProps({
   funnel: { type: Array, required: true },
 });
-const emit = defineEmits(["done"]);
+const emit = defineEmits(["done", "restart"]);
 
 const STAGE_LABEL = {
   TOTAL: "검색 대상",
@@ -119,10 +119,10 @@ onUnmounted(() => {
           조건에 가장 잘 맞는<br />{{ finalCount }}개의 동을 찾았어요
         </p>
         <button
-          @click="emit('done')"
+          @click="finalCount === 0 ? emit('restart') : emit('done')"
           class="w-full bg-primary text-primary-foreground font-bold py-3.5 rounded-full text-[15px] hover:bg-primary/90 transition-colors"
         >
-          추천 결과 보기 <ChevronRight :size="15" class="inline -mt-0.5" />
+          {{ finalCount === 0 ? "동네 다시 찾아보기" : "추천 결과 보기" }} <ChevronRight :size="15" class="inline -mt-0.5" />
         </button>
       </div>
     </div>

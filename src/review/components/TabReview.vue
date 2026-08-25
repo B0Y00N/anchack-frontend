@@ -1,5 +1,4 @@
 <script setup>
-import { MessageSquare } from "lucide-vue-next";
 import StarDisplay from "../../common/components/StarDisplay.vue";
 import ReviewCard from "./ReviewCard.vue";
 
@@ -8,7 +7,6 @@ defineProps({
   avgOverall: { type: Number, default: 0 },
   catAvgs: { type: Array, required: true }, // [{ cat, avg }]
 });
-const emit = defineEmits(["write-review"]);
 </script>
 
 <template>
@@ -31,10 +29,6 @@ const emit = defineEmits(["write-review"]);
         </div>
       </div>
     </div>
-
-    <button @click="emit('write-review')" class="w-full flex items-center justify-center gap-2 border-2 border-dashed border-primary/30 rounded-2xl py-5 text-primary font-semibold hover:bg-secondary transition-colors text-sm">
-      <MessageSquare :size="16" /> 이 동네 리뷰 직접 작성하기
-    </button>
 
     <div v-if="reviews.length === 0" class="text-center py-16 bg-card border border-border rounded-2xl">
       <div class="text-4xl mb-4">✍️</div>

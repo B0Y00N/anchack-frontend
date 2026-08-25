@@ -2,6 +2,7 @@
 import { computed } from "vue";
 import { ChevronLeft, ShoppingCart } from "lucide-vue-next";
 import TheFooter from "../../../common/components/TheFooter.vue";
+import { formatOneDecimal } from "../../../common/utils/formatNumber";
 
 const props = defineProps({
   neighborhoods: { type: Array, required: true },
@@ -12,11 +13,11 @@ const emit = defineEmits(["back"]);
 const ns = computed(() => props.neighborhoods.filter((n) => props.compareList.includes(n.id)));
 
 const rows = [
-  { label: "적합도", get: (n) => `${n.score}점`, compare: "higher", num: (n) => n.score },
+  { label: "적합도", get: (n) => `${formatOneDecimal(n.score)}점`, compare: "higher", num: (n) => n.score },
   { label: "통근시간", get: (n) => (n.commuteTime != null ? `${n.commuteTime}분` : "정보 없음"), compare: "lower", num: (n) => n.commuteTime },
   { label: "월세 중위값", get: (n) => (n.monthly != null ? `${n.monthly}만원` : "정보 없음"), compare: "lower", num: (n) => n.monthly },
   { label: "보증금", get: (n) => (n.deposit != null ? `${n.deposit.toLocaleString()}만원` : "정보 없음"), compare: "lower", num: (n) => n.deposit },
-  { label: "종합 안전 점수", get: (n) => (n.safetyScore != null ? `${n.safetyScore}점` : "정보 없음"), compare: "higher", num: (n) => n.safetyScore },
+  { label: "종합 안전 점수", get: (n) => (n.safetyScore != null ? `${formatOneDecimal(n.safetyScore)}점` : "정보 없음"), compare: "higher", num: (n) => n.safetyScore },
   { label: "주요 장점", get: (n) => n.pros[0] },
   { label: "아쉬운 점", get: (n) => n.cons[0] },
 ];
@@ -62,7 +63,7 @@ function cellTone(row, n) {
               <th class="px-6 py-5 text-left text-sm font-semibold text-muted-foreground w-[200px]">비교 항목</th>
               <th v-for="n in ns" :key="n.id" class="px-6 py-5 text-center">
                 <div class="font-bold text-foreground">{{ n.guName }} {{ n.dongName }}</div>
-                <div class="text-sm font-bold text-primary">적합도 {{ n.score }}점</div>
+                <div class="text-sm font-bold text-primary">적합도 {{ formatOneDecimal(n.score) }}점</div>
               </th>
             </tr>
           </thead>

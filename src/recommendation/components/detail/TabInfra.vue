@@ -24,7 +24,12 @@ const items = computed(() => [
   },
   { label: '공원', count: props.n.parks ?? 0, icon: Trees, color: '#8ECBA9' },
   { label: '은행', count: props.n.banks ?? 0, icon: Building2, color: '#7B68A6' },
-  { label: '카페/음식점', count: props.n.cafes ?? 0, icon: Coffee, color: '#C47C3A' },
+  {
+    label: '카페/음식점',
+    count: (props.n.cafes ?? 0) + (props.n.restaurants ?? 0),
+    icon: Coffee,
+    color: '#C47C3A',
+  },
   {
     label: '백화점',
     count: props.n.department ?? 0,
@@ -65,7 +70,7 @@ const items = computed(() => [
     <NeighborhoodMap
       :district="n.guName"
       :dong="n.dongName"
-      :admin-dong-id="n.id"
+      :admin-dong-id="n.id ?? n.adminDongId"
       :hash="hash"
       mode="infra"
       :boundary-stroke-weight="3"

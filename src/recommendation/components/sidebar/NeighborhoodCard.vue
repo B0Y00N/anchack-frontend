@@ -1,5 +1,6 @@
 <script setup>
 import { Heart, Clock, Check, RefreshCw } from 'lucide-vue-next'
+import { formatOneDecimal } from '../../../common/utils/formatNumber'
 
 const props = defineProps({
   n: { type: Object, required: true },
@@ -29,7 +30,7 @@ const emit = defineEmits(['detail', 'focus', 'compare', 'toggle-save'])
         >
         <div>
           <h3 class="font-bold text-foreground text-base">{{ n.guName }} {{ n.dongName }}</h3>
-          <p class="text-xs font-bold text-primary">적합도 {{ n.score }}점</p>
+          <p class="text-xs font-bold text-primary">적합도 {{ formatOneDecimal(n.score) }}점</p>
         </div>
       </div>
       <button
@@ -44,7 +45,7 @@ const emit = defineEmits(['detail', 'focus', 'compare', 'toggle-save'])
       <span v-if="n.commuteTime != null" class="flex items-center gap-1"
         ><Clock :size="11" /> {{ n.commuteTime }}분 · 환승 {{ n.transferCount }}회</span
       >
-      <span>데이터 커버리율 {{ n.dataCoverageRate }}%</span>
+      <span>데이터 커버리율 {{ formatOneDecimal(n.dataCoverageRate) }}%</span>
     </div>
     <div class="text-xs space-y-1.5 mb-4">
       <p

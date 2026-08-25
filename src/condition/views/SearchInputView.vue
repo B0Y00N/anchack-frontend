@@ -71,6 +71,12 @@ function onLoadingDone() {
 function onFunnelDone() {
   router.push("/search/results");
 }
+function restartSearch() {
+  search.reset();
+  recommendation.reset();
+  showFunnel.value = false;
+  goStep(1);
+}
 function goBack() {
   if (route.query.recomputeConditionId) {
     router.push("/mypage");
@@ -82,7 +88,13 @@ function goBack() {
 
 <template>
   <Transition name="screen-fade" mode="out-in">
-    <SearchFunnel v-if="isLoading && showFunnel" key="funnel" :funnel="recommendation.filterFunnel" @done="onFunnelDone" />
+    <SearchFunnel
+      v-if="isLoading && showFunnel"
+      key="funnel"
+      :funnel="recommendation.filterFunnel"
+      @done="onFunnelDone"
+      @restart="restartSearch"
+    />
 
     <SearchLoading
       v-else-if="isLoading"

@@ -2,7 +2,7 @@
 import { Search, MapPin, BarChart2 } from "lucide-vue-next";
 
 const steps = [
-  { step: "STEP 1", icon: Search, title: "목적지와 예산 입력", desc: "출근지, 예산, 주거 유형과 생활 우선순위를 입력해요." },
+  { step: "STEP 1", icon: Search, title: "목적지와 예산 입력", desc: "목적지, 예산, 주거 유형과 생활 우선순위를 입력해요." },
   { step: "STEP 2", icon: MapPin, title: "나에게 맞는 동네 추천", desc: "조건을 분석해서 최적의 동네를 점수와 이유와 함께 알려드려요." },
   { step: "STEP 3", icon: BarChart2, title: "추천 이유와 단점 비교", desc: "장단점을 투명하게 공개하고 동네별 지표를 한눈에 비교해요." },
 ];
