@@ -37,9 +37,7 @@ const nearestSubway = computed(() => {
   if (!value) return { name: '정보 없음', walkTime: null }
 
   const matched = value.match(/^(.*?)\s*\((도보\s+\d+분)\)$/)
-  return matched
-    ? { name: matched[1], walkTime: matched[2] }
-    : { name: value, walkTime: null }
+  return matched ? { name: matched[1], walkTime: matched[2] } : { name: value, walkTime: null }
 })
 
 const transitRating = computed(() => {
@@ -83,20 +81,15 @@ const catAvgs = computed(() =>
 
     <div>
       <div class="max-w-5xl mx-auto px-8 py-8">
-        <TabInfra
-          v-if="tab === '생활 인프라' && detail"
-          :n="detail"
-          :hash="hash"
-        />
-        <div v-else-if="tab === '생활 인프라'" class="py-16 text-center text-sm text-muted-foreground">
+        <TabInfra v-if="tab === '생활 인프라' && detail" :n="detail" :hash="hash" />
+        <div
+          v-else-if="tab === '생활 인프라'"
+          class="py-16 text-center text-sm text-muted-foreground"
+        >
           생활 인프라 정보를 불러오는 중이에요.
         </div>
 
-        <TabSafety
-          v-else-if="tab === '치안' && detail"
-          :n="detail"
-          :hash="hash"
-        />
+        <TabSafety v-else-if="tab === '치안' && detail" :n="detail" :hash="hash" />
         <div v-else-if="tab === '치안'" class="py-16 text-center text-sm text-muted-foreground">
           치안 정보를 불러오는 중이에요.
         </div>
@@ -105,12 +98,22 @@ const catAvgs = computed(() =>
           <div v-if="detail" class="bg-card border border-border rounded-2xl p-6 text-center">
             <p class="text-xs text-muted-foreground">교통 접근성 점수</p>
             <p class="mt-1 text-4xl font-bold" :style="{ color: transitRating.color }">
-              {{ detail.transitScore != null ? `${formatOneDecimal(detail.transitScore)}점` : '정보 없음' }}
+              {{
+                detail.transitScore != null
+                  ? `${formatOneDecimal(detail.transitScore)}점`
+                  : '정보 없음'
+              }}
             </p>
-            <p v-if="transitRating.label" class="mt-1 text-xs font-semibold" :style="{ color: transitRating.color }">
+            <p
+              v-if="transitRating.label"
+              class="mt-1 text-xs font-semibold"
+              :style="{ color: transitRating.color }"
+            >
               {{ transitRating.label }}
             </p>
-            <p class="mt-2 text-xs text-muted-foreground">지하철역·버스정류장 밀도를 인구와 면적 기준으로 비교한 점수예요.</p>
+            <p class="mt-2 text-xs text-muted-foreground">
+              지하철역·버스정류장 밀도를 인구와 면적 기준으로 비교한 점수예요.
+            </p>
           </div>
           <div v-if="detail" class="grid gap-4 sm:grid-cols-3">
             <div class="bg-card border border-border rounded-2xl p-5 text-center">
@@ -128,7 +131,9 @@ const catAvgs = computed(() =>
               <p class="truncate text-base font-bold text-primary" :title="nearestSubway.name">
                 {{ nearestSubway.name }}
               </p>
-              <p v-if="nearestSubway.walkTime" class="mt-0.5 text-xs text-muted-foreground">{{ nearestSubway.walkTime }}</p>
+              <p v-if="nearestSubway.walkTime" class="mt-0.5 text-xs text-muted-foreground">
+                {{ nearestSubway.walkTime }}
+              </p>
               <p class="mt-1 text-xs text-muted-foreground">가장 가까운 지하철역</p>
             </div>
           </div>

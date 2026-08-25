@@ -85,7 +85,7 @@ async function loadDongReviewStats(district) {
     if (selectedDistrict.value !== district) return
 
     dongReviewStats.value = Object.fromEntries(
-      res.data.map((row) => [
+      res.data.data.map((row) => [
         row.dongName,
         { count: row.reviewCount, avg: row.avgRating ?? 0 },
       ]),

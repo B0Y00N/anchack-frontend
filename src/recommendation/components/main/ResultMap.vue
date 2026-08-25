@@ -40,7 +40,10 @@ let overlays = []
 let districtOutlineList = []
 
 function createDongKey(district, dongName) {
-  return `${district}:${String(dongName ?? '').replace(/제(\d+동)$/, '$1')}`
+  const normalizedDong = String(dongName ?? '')
+    .replace(/[\s,.·ㆍ]/g, '')
+    .replace(/제(\d+동)$/, '$1')
+  return `${district}:${normalizedDong}`
 }
 
 const RAINBOW_25_COLORS = [
