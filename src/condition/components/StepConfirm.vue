@@ -28,6 +28,16 @@ const target = computed(() => {
   return props.state.commuteAreas.length ? props.state.commuteAreas.join(", ") : "아직 미정";
 });
 const depositChips = computed(() => (props.state.rentType === "월세" ? [500, 1000, 1500, 2000, 3000] : [5000, 10000, 15000, 20000, 30000]));
+const budgetLines = computed(() => {
+  const deposit = Number(props.state.deposit ?? 0).toLocaleString();
+
+  if (props.state.rentType === "월세") {
+    const monthly = Number(props.state.monthly ?? 0).toLocaleString();
+    return [`월세 · 보증금 ${deposit}만원 · 월세 ${monthly}만원`];
+  }
+
+  return [`전세 · 전세금 ${deposit}만원`];
+});
 
 function togglePriority(p) {
   const s = props.state;
@@ -134,7 +144,7 @@ function selectAddress({ zonecode, address, roadAddress }) {
 
         <InlineEditSection
           title="예산"
-          :lines="[`${state.rentType} · ${state.deposit.toLocaleString()}만원`]"
+          :lines="budgetLines"
           :is-open="expanded === 'budget'"
           @toggle="toggleSection('budget')"
         >
@@ -163,7 +173,7 @@ function selectAddress({ zonecode, address, roadAddress }) {
 
         <InlineEditSection
           title="주택 유형 및 면적"
-          :lines="[state.housingTypes.join(', '), state.minArea]"
+          :lines="[`주택 유형: ${state.housingTypes.join(', ')}`, `면적: ${state.minArea}`]"
           :is-open="expanded === 'housing'"
           @toggle="toggleSection('housing')"
         >

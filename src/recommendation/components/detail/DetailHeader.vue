@@ -1,5 +1,6 @@
 <script setup>
 import { ChevronLeft, Home, Heart, RefreshCw, Star } from "lucide-vue-next";
+import { formatOneDecimal } from "../../../common/utils/formatNumber";
 
 const props = defineProps({
   n: { type: Object, required: true },
@@ -16,7 +17,7 @@ const emit = defineEmits(["back", "listings", "toggle-save", "compare"]);
       <div>
         <h1 class="text-4xl font-bold text-foreground mb-1">{{ n.guName }} {{ n.dongName }}</h1>
         <div class="flex items-center gap-3">
-          <p class="text-xl font-bold text-primary">적합도 {{ n.score }}점</p>
+          <p class="text-xl font-bold text-primary">적합도 {{ formatOneDecimal(n.score) }}점</p>
           <div class="flex items-center gap-1">
             <Star v-for="i in 5" :key="i" :size="14" :class="i - 1 < Math.round(n.score / 20) ? 'text-primary fill-primary' : 'text-muted-foreground'" />
           </div>

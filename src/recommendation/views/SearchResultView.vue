@@ -9,12 +9,17 @@ import CompareTable from '../components/main/CompareTable.vue'
 import ListingsPanel from '../components/main/ListingsPanel.vue'
 import DetailPanel from '../components/detail/DetailPanel.vue'
 import BaseToast from '../../common/components/BaseToast.vue'
+import LoginRequiredModal from '../../common/components/LoginRequiredModal.vue'
+import ReviewWriteModal from '../../review/components/ReviewWriteModal.vue'
 import { useSearchStore } from '@/condition/stores/useSearchStore.js'
 import { useRecommendationStore } from '@/recommendation/stores/useRecommendationStore.js'
 import { useNeighborhoodStore } from '@/region/stores/useNeighborhoodStore.js'
 import { useMyPageStore } from '@/mypage/stores/useMyPageStore.js'
 import { resolveLineColor } from '@/recommendation/utils/lineColors.js'
 import { saveUserCondition, getSavedUserConditions } from '@/condition/api/userConditions.js'
+import { useAuthStore } from '@/user/stores/useAuthStore.js'
+import { getReviews } from '@/review/api/review.js'
+import { mapReviewResponse } from '@/review/constants.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -22,18 +27,39 @@ const search = useSearchStore()
 const recommendation = useRecommendationStore()
 const nbhd = useNeighborhoodStore()
 const mypage = useMyPageStore()
+const auth = useAuthStore()
 
 // 새로고침으로 sessionStorage에서 recommendations를 복구했는데, 그 순간 detailsById가
 // 비어 있는 채였다면(예: 원래 세션에서 fetchDetails가 끝나기 전에 새로고침됨) 아무도
 // 다시 요청해주지 않아 상세 화면이 로딩 상태로 멈춘다. 진입 시 한 번 확인해서 이어준다.
 onMounted(() => {
-  if (recommendation.recommendations.length > 0 && recommendation.detailsStatus === 'idle') {
+  const needsMetricRefresh = recommendation.recommendations.some((item) => {
+    const detail = recommendation.detailsById[item.adminDongId]
+    return (
+      !detail ||
+      !('safetyBellCount' in detail) ||
+      !('jeonseDeposit' in detail) ||
+      !('jeonseDist' in detail) ||
+      !('monthlyHouseTypes' in detail) ||
+      !('jeonseHouseTypes' in detail) ||
+      !('pharmacies' in detail) ||
+      !('banks' in detail) ||
+      !('cafes' in detail) ||
+      !('restaurants' in detail)
+      || !('subwayStationCount' in detail)
+      || !('busStopCount' in detail)
+      || !('nearestSubwayStation' in detail)
+    )
+  })
+
+  if (recommendation.recommendations.length > 0 && (recommendation.detailsStatus === 'idle' || needsMetricRefresh)) {
     recommendation.fetchDetails()
   }
 })
 
 // 실제 API 응답을 카드/상세 화면이 쓰는 모양으로 다듬는다.
-// guName/dongName/lat/lng는 P0, deposit/monthly/rentDist/cctv/police/crimeRate/safetyScore/
+// guName/dongName/lat/lng는 P0, deposit/monthly/rentDist/jeonseDeposit/jeonseDist 및
+// 주거유형별 property_metrics와 cctv/safetyBellCount/police/crimeRate/safetyScore를 채운다.
 // gyms/convenience/hospitals/parks/department/mart는 P1-b(admin-dongs/batch)에서 채워진다.
 // route/transportType/lineNum/vehicleType/walkMin/subwayMin/transferMin(P1-a)은 목적지를
 // 안 넣은 검색이면 없을 수 있어 TabCommute.vue가 undefined를 안전하게 처리한다.
@@ -119,6 +145,39 @@ const savedConditionsList = ref([])
 
 const selectedId = computed(() => (route.params.id != null ? Number(route.params.id) : null))
 const selectedNeighborhood = computed(() => neighborhoods.value.find((n) => n.id === selectedId.value))
+const selectedReviews = ref([])
+const showReviewForm = ref(false)
+const showLoginRequired = ref(false)
+
+async function loadSelectedReviews(adminDongId) {
+  if (!adminDongId) {
+    selectedReviews.value = []
+    return
+  }
+
+  try {
+    const response = await getReviews(adminDongId)
+    // 다른 동으로 이동한 뒤 이전 요청이 늦게 끝나도, 현재 동의 리뷰를 덮어쓰지 않는다.
+    if (selectedId.value === adminDongId) selectedReviews.value = response.data.map(mapReviewResponse)
+  } catch (error) {
+    console.error('리뷰 정보를 불러오지 못했습니다:', error.response?.data || error)
+    if (selectedId.value === adminDongId) selectedReviews.value = []
+  }
+}
+
+watch(selectedId, (adminDongId) => loadSelectedReviews(adminDongId), { immediate: true })
+
+function openReviewForm() {
+  if (!auth.isLoggedIn) {
+    showLoginRequired.value = true
+    return
+  }
+  if (selectedNeighborhood.value) showReviewForm.value = true
+}
+
+function handleReviewCreated(apiReview) {
+  selectedReviews.value = [mapReviewResponse(apiReview), ...selectedReviews.value]
+}
 // admin-dongs/batch는 추천 성공 직후 한 번에 조회되지만, 그 응답이 오기 전에 사용자가
 // 카드를 눌러 상세로 들어올 수 있어 이 id의 상세 정보가 아직 왔는지 별도로 확인한다.
 const detailReady = computed(() => selectedId.value != null && recommendation.detailsById[selectedId.value] != null)
@@ -176,6 +235,18 @@ function goListings() {
   <transition name="toast-pop">
     <BaseToast v-if="toast" :message="toast" @done="toast = null" />
   </transition>
+  <ReviewWriteModal
+    v-if="showReviewForm && selectedNeighborhood"
+    :admin-dong-id="selectedNeighborhood.id"
+    :admin-dong-name="`${selectedNeighborhood.guName} ${selectedNeighborhood.dongName}`"
+    @close="showReviewForm = false"
+    @created="handleReviewCreated"
+  />
+  <LoginRequiredModal
+    v-if="showLoginRequired"
+    message="로그인한 회원만 리뷰를 작성할 수 있어요."
+    @close="showLoginRequired = false"
+  />
 
   <transition name="view-fade" mode="out-in">
     <div v-if="mode === 'results'" key="results" class="flex h-screen pt-15 overflow-hidden">
@@ -215,12 +286,14 @@ function goListings() {
       v-else-if="mode === 'detail' && selectedNeighborhood && detailReady"
       key="detail"
       :n="selectedNeighborhood"
+      :reviews="selectedReviews"
       :is-saved="mypage.savedNeighborhoods.includes(selectedId)"
       :in-compare="nbhd.compareList.includes(selectedId)"
       @back="router.push('/search/results')"
       @listings="goListings"
       @toggle-save="toggleSaveWithToast(selectedId)"
       @compare="toggleCompare(selectedId)"
+      @write-review="openReviewForm"
     />
 
     <div
@@ -263,7 +336,7 @@ function goListings() {
     <ListingsPanel
       v-else-if="mode === 'listings'"
       key="listings"
-      :neighborhood-id="route.params.id"
+      :neighborhood-name="selectedNeighborhood?.dongName ?? '선택한 동네'"
       @back="router.push(`/search/results/${route.params.id}`)"
     />
   </transition>

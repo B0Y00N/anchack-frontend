@@ -1,6 +1,8 @@
 <script setup>
 import { ArrowRight, Map } from "lucide-vue-next";
 import SproutLogo from "../../common/components/SproutLogo.vue";
+import heroHouses from "../../assets/images/home-hero-houses.png";
+import heroMiniHouse from "../../assets/images/home-hero-mini-house.png";
 
 defineEmits(["start", "navigate"]);
 </script>
@@ -10,10 +12,19 @@ defineEmits(["start", "navigate"]);
     <div class="absolute inset-0 pointer-events-none">
       <div class="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[600px] bg-primary/5 rounded-full blur-3xl" />
       <div class="absolute top-32 left-10 w-48 h-48 bg-secondary rounded-full blur-2xl opacity-60" />
+      <div class="hero-houses hidden lg:block" aria-hidden="true">
+        <img :src="heroHouses" alt="" class="hero-house-layer hero-house-top" />
+        <img :src="heroHouses" alt="" class="hero-house-layer hero-house-bottom-left" />
+        <img :src="heroHouses" alt="" class="hero-house-layer hero-house-bottom-right" />
+        <img :src="heroMiniHouse" alt="" class="hero-mini-house hero-mini-house-top-left" />
+        <img :src="heroMiniHouse" alt="" class="hero-mini-house hero-mini-house-top-right" />
+        <img :src="heroMiniHouse" alt="" class="hero-mini-house hero-mini-house-middle-left" />
+        <img :src="heroMiniHouse" alt="" class="hero-mini-house hero-mini-house-middle-right" />
+      </div>
     </div>
     <div class="relative z-10 max-w-3xl">
-      <div class="inline-flex items-center gap-2 bg-secondary text-primary text-xs font-bold px-3.5 py-1.5 rounded-full mb-9 border border-primary/15">
-        <SproutLogo :size="16" /> 사회초년생을 위한 맞춤 동네 추천 서비스
+      <div class="inline-flex items-center gap-3 bg-secondary text-primary text-[18px] font-bold px-[21px] py-[9px] rounded-full mb-9 border border-primary/15">
+        <SproutLogo :size="24" /> 사회초년생을 위한 맞춤 동네 추천 서비스
       </div>
       <h1 class="text-[56px] font-bold text-foreground leading-[1.18] mb-6 tracking-tight">
         낯선 동네,<br /><span class="text-primary">어디에 살아야 할지</span> 모르겠다면
@@ -26,9 +37,63 @@ defineEmits(["start", "navigate"]);
           내게 맞는 동네 찾기 <ArrowRight :size="18" />
         </button>
         <button @click="$emit('navigate', 'explore')" class="flex items-center gap-2.5 px-9 py-4 rounded-full border border-border text-foreground font-semibold hover:bg-secondary text-base bg-white">
-          <Map :size="17" /> 동네 둘러보기
+          <Map :size="17" /> 동네 둘러보기 <ArrowRight :size="18" />
         </button>
       </div>
     </div>
   </section>
 </template>
+
+<style scoped>
+.hero-houses,
+.hero-house-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.hero-house-layer {
+  object-fit: fill;
+  opacity: 0.9;
+}
+
+.hero-house-top {
+  clip-path: inset(0 0 62% 0);
+}
+
+.hero-house-bottom-left {
+  clip-path: inset(58% 70% 0 0);
+}
+
+.hero-house-bottom-right {
+  clip-path: inset(58% 0 0 70%);
+}
+
+.hero-mini-house {
+  position: absolute;
+  width: clamp(104px, 8vw, 148px);
+  height: auto;
+  opacity: 0.94;
+}
+
+.hero-mini-house-top-left {
+  top: 6%;
+  left: 25%;
+}
+
+.hero-mini-house-top-right {
+  top: 6%;
+  right: 28%;
+}
+
+.hero-mini-house-middle-left {
+  top: 30%;
+  left: 5%;
+}
+
+.hero-mini-house-middle-right {
+  top: 30%;
+  right: 5%;
+}
+</style>

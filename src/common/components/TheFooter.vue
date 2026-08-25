@@ -11,7 +11,7 @@ import SproutLogo from "./SproutLogo.vue";
             <SproutLogo :size="28" />
             <span class="font-bold text-foreground text-base">안착</span>
           </div>
-          <p class="text-xs text-muted-foreground leading-relaxed">사회초년생을 위한<br />이사 의사결정 지원 서비스</p>
+          <p class="text-xs text-muted-foreground leading-relaxed">사회 초년생을 위한<br />맞춤 동네 추천 서비스</p>
         </div>
         <div class="flex-1 grid grid-cols-2 gap-8">
           <div>

@@ -1,121 +1,56 @@
 <script setup>
 import { ref, computed, toRefs } from 'vue'
-import {
-  Dumbbell,
-  Store,
-  Hospital,
-  Trees,
-  Building2,
-  Coffee,
-  ShoppingBag,
-  Shield,
-  Home,
-} from 'lucide-vue-next'
-import ScoreBar from '../../common/components/ScoreBar.vue'
-import MiniBarChart from '../../common/components/MiniBarChart.vue'
+import { Bus, Train } from 'lucide-vue-next'
 import NeighborhoodMap from '../../recommendation/components/detail/NeighborhoodMap.vue'
+import TabSafety from '../../recommendation/components/detail/TabSafety.vue'
+import TabInfra from '../../recommendation/components/detail/TabInfra.vue'
+import TabHousing from '../../recommendation/components/detail/TabHousing.vue'
 import TabReview from '../../review/components/TabReview.vue'
 import { REVIEW_CATEGORIES } from '../../review/constants.js'
+import { formatOneDecimal } from '../../common/utils/formatNumber'
 
 const props = defineProps({
   district: { type: String, required: true },
   dong: { type: String, required: true },
   adminDongId: { type: Number, default: null },
+  detail: { type: Object, default: null },
   reviews: { type: Array, required: true },
   stats: { type: Object, required: true }, // ExploreView에서 계산해 내려줌 (ExploreHeader와 공유)
   hash: { type: Number, required: true },
 })
 const emit = defineEmits(['write-review', 'listings'])
 
-const TABS = ['인프라', '치안', '교통', '주거비', '리뷰']
-const tab = ref('인프라')
+const TABS = ['교통', '치안', '생활 인프라', '주거비', '리뷰']
+const tab = ref('교통')
 
 function selectTab(nextTab) {
   if (tab.value === nextTab) return
   tab.value = nextTab
 }
 
-const { hash, stats } = toRefs(props)
-const MAP_MODE_BY_TAB = { 인프라: 'infra', 치안: 'safety', 교통: 'transit' }
+const { hash } = toRefs(props)
+const MAP_MODE_BY_TAB = { 교통: 'transit' }
 const mapMode = computed(() => MAP_MODE_BY_TAB[tab.value] ?? null)
 
-const infraData = computed(() => [
-  { name: '헬스장', count: stats.value.gyms, icon: Dumbbell, color: '#2D7A4F' },
-  { name: '편의점', count: stats.value.convenience, icon: Store, color: '#52B37A' },
-  {
-    name: '병원/약국',
-    count: stats.value.hospitals + stats.value.pharmacies,
-    icon: Hospital,
-    color: '#6D9E5C',
-  },
-  { name: '공원', count: stats.value.parks, icon: Trees, color: '#8ECBA9' },
-  { name: '은행', count: stats.value.banks, icon: Building2, color: '#7B68A6' },
-  { name: '카페/음식점', count: stats.value.cafes, icon: Coffee, color: '#C47C3A' },
-  { name: '백화점', count: stats.value.department ?? 0, icon: Building2, color: '#B03A8C' },
-  { name: '대형마트', count: stats.value.mart ?? 0, icon: ShoppingBag, color: '#D97706' },
-])
+const nearestSubway = computed(() => {
+  const value = props.detail?.nearestSubwayStation
+  if (!value) return { name: '정보 없음', walkTime: null }
 
-const scoreColor = (v) =>
-  v === 100
-    ? '#F0B87A'
-    : v >= 90
-      ? '#F2A8C0'
-      : v >= 80
-        ? '#B8AEDD'
-        : v >= 70
-          ? '#8EC8E8'
-          : '#A8D5A0'
-
-const safetyBars = computed(() => {
-  const h = hash.value,
-    s = stats.value
-  return [
-    { label: 'CCTV 밀도', value: Math.min(Math.round(s.cctv * 35), 100) },
-    { label: '야간 안전도', value: s.safetyScore },
-    { label: '경찰 접근성', value: 65 + (h % 25) },
-    { label: '가로등 밀도', value: 58 + (h % 32) },
-    { label: '범죄율 지수', value: Math.max(100 - Math.round(s.crimeRate * 18), 30) },
-  ]
+  const matched = value.match(/^(.*?)\s*\((도보\s+\d+분)\)$/)
+  return matched
+    ? { name: matched[1], walkTime: matched[2] }
+    : { name: value, walkTime: null }
 })
 
-const transitBars = computed(() => {
-  const h = hash.value,
-    s = stats.value
-  return [
-    { label: '지하철 접근성', value: s.transitScore },
-    { label: '버스 노선 다양성', value: 60 + (h % 30) },
-    { label: '야간 교통', value: 50 + (h % 35) },
-  ]
+const transitRating = computed(() => {
+  const score = Number(props.detail?.transitScore)
+  if (!Number.isFinite(score)) return { color: '#64748B', label: null }
+  if (score > 19.97) return { color: '#FF1493', label: '매우 좋음' }
+  if (score > 12.73) return { color: '#4A90D9', label: '좋음' }
+  if (score > 7.72) return { color: '#52B37A', label: '보통' }
+  if (score > 3.49) return { color: '#F0B87A', label: '낮음' }
+  return { color: '#E56B6F', label: '매우 낮음' }
 })
-
-const commuteData = computed(() => {
-  const h = hash.value,
-    s = stats.value
-  return [
-    { label: '강남·역삼', value: s.avgCommute + (h % 15), unit: '분' },
-    { label: '여의도', value: Math.max(15, s.avgCommute - 5 + (h % 12)), unit: '분' },
-    { label: '광화문', value: Math.max(15, s.avgCommute - 8 + (h % 10)), unit: '분' },
-    { label: '홍대·마포', value: Math.max(10, s.avgCommute - 10 + (h % 8)), unit: '분' },
-    { label: '성수·왕십리', value: s.avgCommute + 5 + (h % 8), unit: '분' },
-  ]
-})
-function commuteColor(v) {
-  return v <= 30 ? '#A8D5A0' : v <= 45 ? '#F5E6A0' : '#F2B8B8'
-}
-
-const rentDistData = computed(() => {
-  const h = hash.value
-  return [
-    { label: '50만원↓', value: 2 + (h % 4) },
-    { label: '50~60', value: 3 + (h % 5) },
-    { label: '60~70', value: 4 + (h % 4) },
-    { label: '70~80', value: 2 + (h % 3) },
-    { label: '80만원↑', value: h % 3 },
-  ]
-})
-function rentColor(v) {
-  return v <= 4 ? '#F2B8B8' : v <= 6 ? '#F5E6A0' : '#A8C5E8'
-}
 
 const avgOverall = computed(() =>
   props.reviews.length > 0
@@ -148,131 +83,67 @@ const catAvgs = computed(() =>
 
     <div>
       <div class="max-w-5xl mx-auto px-8 py-8">
-        <div v-if="tab === '인프라'" class="space-y-5">
-          <div>
-            <p class="mb-2 text-right text-[11px] text-muted-foreground">단위: 수</p>
-            <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <div
-                v-for="item in infraData"
-                :key="item.name"
-                class="border rounded-2xl p-4 text-center bg-card border-border"
-              >
-                <component
-                  :is="item.icon"
-                  :size="26"
-                  :stroke-width="1.8"
-                  class="mx-auto mb-1.5"
-                  :style="{ color: item.color }"
-                />
-                <p class="text-xl font-bold text-foreground mb-0.5">{{ item.count }}</p>
-                <p class="text-base text-muted-foreground">{{ item.name }}</p>
-              </div>
-            </div>
-          </div>
+        <TabInfra
+          v-if="tab === '생활 인프라' && detail"
+          :n="detail"
+          :hash="hash"
+        />
+        <div v-else-if="tab === '생활 인프라'" class="py-16 text-center text-sm text-muted-foreground">
+          생활 인프라 정보를 불러오는 중이에요.
         </div>
 
-        <div v-else-if="tab === '치안'" class="space-y-5">
-          <div class="grid grid-cols-3 gap-4">
-            <div class="bg-card border border-border rounded-2xl p-5 text-center">
-              <p class="text-2xl font-bold text-primary mb-1">{{ stats.safetyScore }}점</p>
-              <p class="text-xs text-muted-foreground">종합 안전 점수</p>
-            </div>
-            <div class="bg-card border border-border rounded-2xl p-5 text-center">
-              <p class="text-2xl font-bold text-primary mb-1">{{ stats.cctv }}대</p>
-              <p class="text-xs text-muted-foreground">100m당 CCTV</p>
-            </div>
-            <div class="bg-card border border-border rounded-2xl p-5 text-center">
-              <p class="text-2xl font-bold text-primary mb-1">{{ stats.crimeRate }}건</p>
-              <p class="text-xs text-muted-foreground">인구 1천명당 범죄</p>
-            </div>
-          </div>
-          <div class="bg-card border border-border rounded-2xl p-6">
-            <h4 class="font-semibold text-foreground mb-4">항목별 안전 지표</h4>
-            <div class="space-y-3">
-              <ScoreBar
-                v-for="item in safetyBars"
-                :key="item.label"
-                :label="item.label"
-                :value="item.value"
-                unit="점"
-                :color="scoreColor(item.value)"
-              />
-            </div>
-          </div>
-          <div class="bg-card border border-border rounded-2xl p-5 flex items-start gap-3">
-            <Shield :size="18" class="text-primary mt-0.5 flex-shrink-0" />
-            <div>
-              <p class="font-semibold text-foreground text-sm mb-1">관할 경찰서</p>
-              <p class="text-sm text-foreground/80">
-                {{ district.replace('구', '') }}경찰서 {{ dong.slice(0, 2) }}지구대 (도보 약
-                {{ 5 + (hash % 10) }}분)
-              </p>
-            </div>
-          </div>
+        <TabSafety
+          v-else-if="tab === '치안' && detail"
+          :n="detail"
+          :hash="hash"
+        />
+        <div v-else-if="tab === '치안'" class="py-16 text-center text-sm text-muted-foreground">
+          치안 정보를 불러오는 중이에요.
         </div>
 
         <div v-else-if="tab === '교통'" class="space-y-5">
-          <div class="grid grid-cols-3 gap-4">
-            <div class="bg-card border border-border rounded-2xl p-5 text-center">
-              <p class="text-2xl font-bold text-primary mb-1">{{ stats.transitScore }}점</p>
-              <p class="text-xs text-muted-foreground">교통 점수</p>
-            </div>
-            <div class="bg-card border border-border rounded-2xl p-5 text-center">
-              <p class="text-2xl font-bold text-primary mb-1">{{ stats.subwayLine }}</p>
-              <p class="text-xs text-muted-foreground">주요 지하철 노선</p>
-            </div>
-            <div class="bg-card border border-border rounded-2xl p-5 text-center">
-              <p class="text-2xl font-bold text-primary mb-1">{{ stats.avgCommute }}분</p>
-              <p class="text-xs text-muted-foreground">평균 통근시간</p>
-            </div>
-          </div>
-          <div class="bg-card border border-border rounded-2xl p-6">
-            <h4 class="font-semibold text-foreground mb-5">주요 업무지구 통근시간 (예상)</h4>
-            <MiniBarChart :data="commuteData" :color-for="commuteColor" />
-            <p class="text-xs text-muted-foreground mt-2 text-center">
-              * 대중교통 기준 예상 소요시간
+          <div v-if="detail" class="bg-card border border-border rounded-2xl p-6 text-center">
+            <p class="text-xs text-muted-foreground">교통 접근성 점수</p>
+            <p class="mt-1 text-4xl font-bold" :style="{ color: transitRating.color }">
+              {{ detail.transitScore != null ? `${formatOneDecimal(detail.transitScore)}점` : '정보 없음' }}
             </p>
+            <p v-if="transitRating.label" class="mt-1 text-xs font-semibold" :style="{ color: transitRating.color }">
+              {{ transitRating.label }}
+            </p>
+            <p class="mt-2 text-xs text-muted-foreground">지하철역·버스정류장 밀도를 인구와 면적 기준으로 비교한 점수예요.</p>
           </div>
-          <div class="bg-card border border-border rounded-2xl p-6">
-            <h4 class="font-semibold text-foreground mb-4">교통 접근성 지표</h4>
-            <div class="space-y-3">
-              <ScoreBar
-                v-for="item in transitBars"
-                :key="item.label"
-                :label="item.label"
-                :value="item.value"
-                unit="점"
-                :color="scoreColor(item.value)"
-              />
+          <div v-if="detail" class="grid gap-4 sm:grid-cols-3">
+            <div class="bg-card border border-border rounded-2xl p-5 text-center">
+              <Train :size="20" class="mx-auto mb-2 text-primary" />
+              <p class="text-2xl font-bold text-primary">{{ detail.subwayStationCount ?? 0 }}개</p>
+              <p class="mt-1 text-xs text-muted-foreground">지하철역 수</p>
             </div>
+            <div class="bg-card border border-border rounded-2xl p-5 text-center">
+              <Bus :size="20" class="mx-auto mb-2 text-primary" />
+              <p class="text-2xl font-bold text-primary">{{ detail.busStopCount ?? 0 }}개</p>
+              <p class="mt-1 text-xs text-muted-foreground">버스정류장 수</p>
+            </div>
+            <div class="bg-card border border-border rounded-2xl p-5 text-center">
+              <Train :size="20" class="mx-auto mb-2 text-primary" />
+              <p class="truncate text-base font-bold text-primary" :title="nearestSubway.name">
+                {{ nearestSubway.name }}
+              </p>
+              <p v-if="nearestSubway.walkTime" class="mt-0.5 text-xs text-muted-foreground">{{ nearestSubway.walkTime }}</p>
+              <p class="mt-1 text-xs text-muted-foreground">가장 가까운 지하철역</p>
+            </div>
+          </div>
+          <div v-else class="py-16 text-center text-sm text-muted-foreground">
+            교통 정보를 불러오는 중이에요.
           </div>
         </div>
 
-        <div v-else-if="tab === '주거비'" class="space-y-5">
-          <div class="grid grid-cols-2 gap-4">
-            <div class="bg-card border border-border rounded-2xl p-6">
-              <p class="text-xs text-muted-foreground mb-2">평균 월세</p>
-              <p class="text-3xl font-bold text-foreground">{{ stats.avgRent }}만원</p>
-            </div>
-            <div class="bg-card border border-border rounded-2xl p-6">
-              <p class="text-xs text-muted-foreground mb-2">평균 전세</p>
-              <p class="text-3xl font-bold text-foreground">
-                {{ (stats.avgRent * 18).toLocaleString() }}만원
-              </p>
-            </div>
-          </div>
-          <div class="bg-card border border-border rounded-2xl p-6">
-            <div class="flex items-center justify-between mb-5">
-              <h4 class="font-semibold text-foreground">월세 분포</h4>
-              <button
-                @click="emit('listings')"
-                class="flex items-center gap-1.5 text-xs font-semibold text-primary bg-secondary px-3 py-1.5 rounded-full"
-              >
-                <Home :size="12" /> 매물 보러가기
-              </button>
-            </div>
-            <MiniBarChart :data="rentDistData" :color-for="rentColor" :height="160" />
-          </div>
+        <TabHousing
+          v-else-if="tab === '주거비' && detail"
+          :n="detail"
+          @listings="emit('listings')"
+        />
+        <div v-else-if="tab === '주거비'" class="py-16 text-center text-sm text-muted-foreground">
+          주거비 정보를 불러오는 중이에요.
         </div>
 
         <TabReview

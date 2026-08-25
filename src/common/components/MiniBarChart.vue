@@ -9,8 +9,8 @@ const props = defineProps({
   height: { type: Number, default: 180 },
 })
 
-function barColor(v) {
-  if (props.colorFor) return props.colorFor(v)
+function barColor(d, index) {
+  if (props.colorFor) return props.colorFor(d.value, index, d)
   return '#A8D5A0'
 }
 const max = Math.max(...props.data.map((d) => d.value), 1)
@@ -19,7 +19,9 @@ const max = Math.max(...props.data.map((d) => d.value), 1)
 const grown = ref(false)
 onMounted(() => {
   requestAnimationFrame(() => {
-    grown.value = true
+    requestAnimationFrame(() => {
+      grown.value = true
+    })
   })
 })
 </script>
@@ -27,7 +29,7 @@ onMounted(() => {
 <template>
   <div class="flex items-end gap-3" :style="{ height: height + 'px' }">
     <div
-      v-for="d in data"
+      v-for="(d, index) in data"
       :key="d.label"
       class="flex-1 flex flex-col items-center justify-end h-full"
     >
@@ -38,7 +40,7 @@ onMounted(() => {
         class="w-full rounded-t-md transition-all duration-700 ease-out"
         :style="{
           height: (grown ? (d.value / max) * (height - 40) : 0) + 'px',
-          background: barColor(d.value),
+          background: barColor(d, index),
         }"
       />
       <span class="text-[11px] text-muted-foreground mt-2 text-center">{{ d.label }}</span>

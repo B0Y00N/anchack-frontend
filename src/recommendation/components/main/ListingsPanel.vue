@@ -1,10 +1,10 @@
 <script setup>
 import { ref, computed } from "vue";
-import { ChevronLeft, Filter, ExternalLink } from "lucide-vue-next";
+import { ChevronLeft, ExternalLink } from "lucide-vue-next";
 import { MOCK_LISTINGS, MOCK_TRANSACTIONS } from "../../../common/utils/mockData";
 import TheFooter from "../../../common/components/TheFooter.vue";
 
-defineProps({ neighborhoodId: { type: String, required: true } });
+defineProps({ neighborhoodName: { type: String, required: true } });
 const emit = defineEmits(["back"]);
 
 const activeTab = ref("listings"); // "listings" | "transactions"
@@ -20,7 +20,7 @@ const transFiltered = computed(() => MOCK_TRANSACTIONS.filter((t) => rentFilter.
     <div class="border-b border-border bg-white">
       <div class="max-w-6xl mx-auto px-8 py-5">
         <button @click="emit('back')" class="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-primary mb-4 font-medium"><ChevronLeft :size="16" /> 동네 상세로 돌아가기</button>
-        <h1 class="text-2xl font-bold text-foreground">{{ neighborhoodId }} 매물</h1>
+        <h1 class="text-2xl font-bold text-foreground">{{ neighborhoodName }} 매물</h1>
       </div>
       <div class="max-w-6xl mx-auto px-8 flex">
         <button @click="activeTab = 'listings'" :class="`px-6 py-3.5 text-sm font-semibold border-b-2 ${activeTab === 'listings' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground'}`">
@@ -46,7 +46,6 @@ const transFiltered = computed(() => MOCK_TRANSACTIONS.filter((t) => rentFilter.
               {{ t }}
             </button>
           </div>
-          <button class="flex items-center gap-1.5 text-sm text-muted-foreground border border-border rounded-full px-4 py-2 hover:bg-muted ml-auto"><Filter :size="14" /> 상세 필터</button>
         </div>
         <div class="grid grid-cols-3 gap-5">
           <div v-for="listing in filtered" :key="listing.id" class="bg-card border border-border rounded-2xl overflow-hidden hover:border-primary/30 hover:shadow-md transition-all">

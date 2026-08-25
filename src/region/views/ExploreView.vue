@@ -16,7 +16,7 @@ import { useNeighborhoodStore } from '@/region/stores/useNeighborhoodStore'
 import { useMyPageStore } from '@/mypage/stores/useMyPageStore'
 import { useAuthStore } from '@/user/stores/useAuthStore'
 import { useDongStats } from '@/region/composables/useDongStats'
-import { getAdminDong, getReviewStatsByGu } from '@/region/api/neighborhood.js'
+import { getAdminDong, getAdminDongsBatch, getReviewStatsByGu } from '@/region/api/neighborhood.js'
 import { getReviews } from '@/review/api/review.js'
 import { mapReviewResponse } from '@/review/constants.js'
 import { getErrorMessage } from '@/common/api/axios.js'
@@ -122,6 +122,8 @@ const dongStats = computed(() =>
 
 // 선택된 동의 실제 admin_dong_id 정보 (백엔드 /api/admin-dongs 조회 결과)
 const adminDong = ref(null)
+// 치안 탭은 추천 결과와 같은 admin-dongs/batch 응답(안전 점수·CCTV·안심벨·범죄율)을 쓴다.
+const dongDetail = ref(null)
 // 선택된 동의 실제 리뷰 목록 (백엔드 /api/reviews 조회 결과, mapReviewResponse로 변환됨)
 const dongReviewList = ref([])
 const reviewsLoading = ref(false)
@@ -130,6 +132,7 @@ const reviewsError = ref('')
 async function loadDongReviews(district, dong) {
   if (!district || !dong) {
     adminDong.value = null
+    dongDetail.value = null
     dongReviewList.value = []
     reviewsError.value = ''
     return
@@ -146,12 +149,17 @@ async function loadDongReviews(district, dong) {
     const adminDongRes = await getAdminDong(district, adminDongQueryName)
     adminDong.value = adminDongRes.data
 
-    // 2) admin_dong_id 기준으로 실제 DB에 저장된 리뷰 목록 조회
-    const reviewsRes = await getReviews(adminDong.value.adminDongId)
+    // 2) 리뷰와 치안 상세 지표를 같은 admin_dong_id로 함께 불러온다.
+    const [reviewsRes, detailRes] = await Promise.all([
+      getReviews(adminDong.value.adminDongId),
+      getAdminDongsBatch([adminDong.value.adminDongId]),
+    ])
     dongReviewList.value = reviewsRes.data.map(mapReviewResponse)
+    dongDetail.value = detailRes.data.data[0] ?? null
   } catch (error) {
     console.error('리뷰 정보를 불러오지 못했습니다:', error.response?.data || error)
     adminDong.value = null
+    dongDetail.value = null
     dongReviewList.value = []
     reviewsError.value =
       getErrorMessage(error, '리뷰 정보를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.')
@@ -637,7 +645,7 @@ function initMap() {
       <ExploreHeader
         :district="selectedDistrict"
         :dong="selectedDong"
-        :population="dongStats?.stats?.population"
+        :population="Math.round(dongDetail?.dongPopulation ?? 0)"
         :avg-overall="dongAvgOverall"
         :review-count="dongReviewList.length"
         :is-saved="isDongSaved"
@@ -651,6 +659,7 @@ function initMap() {
       :district="selectedDistrict"
       :dong="selectedDong"
       :admin-dong-id="adminDong?.adminDongId"
+      :detail="dongDetail"
       :reviews="dongReviewList"
       :stats="dongStats?.stats"
       :hash="dongStats?.hash"
