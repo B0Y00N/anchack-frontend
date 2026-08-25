@@ -403,8 +403,7 @@ watch(active, () => {
         type="button"
         @click="resetMapFocus"
         class="flex items-center gap-1.5 rounded-full bg-muted px-2.5 py-1 text-xs font-semibold text-muted-foreground transition-colors hover:bg-secondary hover:text-primary"
-        title="선택한 동으로 다시 이동"
-      >
+        title="선택한 동으로 다시 이동">
         <RotateCcw :size="12" /> 선택 동으로
       </button>
     </div>

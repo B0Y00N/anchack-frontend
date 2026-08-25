@@ -134,7 +134,11 @@ function selectAddress({ zonecode, address, roadAddress }) {
 
         <InlineEditSection
           title="예산"
-          :lines="[`${state.rentType} · ${state.deposit.toLocaleString()}만원`]"
+          :lines="[
+            `${state.rentType} · 보증금 ${state.deposit.toLocaleString()}만원${
+              state.rentType === '월세' ? ` · 월세 ${state.monthly.toLocaleString()}만원` : ''
+            }`,
+          ]"
           :is-open="expanded === 'budget'"
           @toggle="toggleSection('budget')"
         >
